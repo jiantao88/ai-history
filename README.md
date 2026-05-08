@@ -30,26 +30,21 @@ Every AI session starts from zero. Your assistant doesn't remember yesterday's d
 
 #### One-line install (recommended)
 
-Just tell your AI assistant to run this:
+Run this in your terminal, or just tell your AI assistant to run it:
 
+```bash
+curl -fsSL https://raw.githubusercontent.com/jiantao88/ai-history/master/setup | bash
 ```
-Install ai-history: git clone https://github.com/jiantao88/ai-history.git /tmp/ai-history && /tmp/ai-history/setup && rm -rf /tmp/ai-history
-```
 
-The setup script automatically:
-- Installs Rust (if not present)
-- Builds and installs the `ai-history` binary
-- Installs the `/ai-history` slash command for **Claude Code**
-- Installs the `/ai-history` skill for **Codex CLI** (if installed)
+No Rust, no build tools required — the script downloads a pre-built binary for your platform (macOS ARM64/Intel, Linux x86_64) and installs the `/ai-history` slash command for Claude Code and Codex CLI.
 
-#### Manual install
+#### From source (for developers)
 
 ```bash
 git clone https://github.com/jiantao88/ai-history.git
 cd ai-history
-./setup                  # full install (binary + skills)
-./setup --claude-only    # Claude Code only
-./setup --codex-only     # Codex CLI only
+cargo install --path .
+./setup                  # install skills only (binary already built)
 ```
 
 ### Use in Claude Code
@@ -162,26 +157,21 @@ MIT
 
 #### 一键安装（推荐）
 
-直接告诉你的 AI 助手执行这条命令：
+在终端运行，或者直接告诉你的 AI 助手执行：
 
+```bash
+curl -fsSL https://raw.githubusercontent.com/jiantao88/ai-history/master/setup | bash
 ```
-安装 ai-history：git clone https://github.com/jiantao88/ai-history.git /tmp/ai-history && /tmp/ai-history/setup && rm -rf /tmp/ai-history
-```
 
-安装脚本会自动完成：
-- 安装 Rust（如果没有）
-- 编译并安装 `ai-history` 二进制文件
-- 为 **Claude Code** 安装 `/ai-history` 斜杠命令
-- 为 **Codex CLI** 安装 `/ai-history` skill（如果已安装 Codex）
+不需要 Rust，不需要编译——脚本会自动下载适合你平台的预编译二进制文件（macOS ARM64/Intel、Linux x86_64），并安装 Claude Code 和 Codex CLI 的 `/ai-history` 斜杠命令。
 
-#### 手动安装
+#### 从源码安装（开发者）
 
 ```bash
 git clone https://github.com/jiantao88/ai-history.git
 cd ai-history
-./setup                  # 完整安装（二进制 + skills）
-./setup --claude-only    # 仅 Claude Code
-./setup --codex-only     # 仅 Codex CLI
+cargo install --path .
+./setup                  # 仅安装 skills（二进制已编译）
 ```
 
 ### 在 Claude Code 中使用
