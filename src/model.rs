@@ -29,6 +29,18 @@ pub struct Project {
     pub last_modified: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SessionMetadata {
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub files_touched: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub tools_used: Vec<String>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub has_errors: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub languages: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
     pub provider: String,
@@ -39,6 +51,8 @@ pub struct Session {
     pub first_time: String,
     pub last_time: String,
     pub summary: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<SessionMetadata>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,4 +73,10 @@ pub struct SearchResult {
     pub session_id: String,
     pub project_name: String,
     pub provider: String,
+    pub score: f64,
+    pub match_index: usize,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub context_before: Vec<Message>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub context_after: Vec<Message>,
 }

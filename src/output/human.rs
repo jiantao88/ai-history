@@ -1,4 +1,4 @@
-use crate::model::{Message, Project, Role, SearchResult, Session};
+use crate::model::{Message, Project, Role, SearchResult, Session, SessionMetadata};
 use owo_colors::OwoColorize;
 
 pub fn print_projects(projects: &[Project]) {
@@ -34,22 +34,25 @@ pub fn print_sessions(sessions: &[Session]) {
     }
 
     println!(
-        "{:<36} {:>5} {:<20} {}",
+        "{:<36} {:>5} {:<20} {:<40} {}",
         "Session ID".bold(),
         "Msgs".bold(),
         "Date".bold(),
         "Summary".bold(),
+        "Tags".bold(),
     );
-    println!("{}", "─".repeat(90));
+    println!("{}", "─".repeat(120));
 
     for s in sessions {
         let summary = s.summary.as_deref().unwrap_or("-");
+        let tags = format_metadata_tags(&s.metadata);
         println!(
-            "{:<36} {:>5} {:<20} {}",
+            "{:<36} {:>5} {:<20} {:<40} {}",
             truncate(&s.id, 36).dimmed(),
             s.message_count,
             format_time(&s.first_time),
             truncate(summary, 40),
+            tags.dimmed(),
         );
     }
 }
@@ -99,15 +102,42 @@ pub fn print_search_results(results: &[SearchResult]) {
     }
 
     for (i, r) in results.iter().enumerate() {
+        let score_str = if r.score > 0.0 {
+            format!("  score: {:.2}", r.score)
+        } else {
+            String::new()
+        };
         println!(
-            "\n{} {} {} {}",
+            "\n{} {} {} {}{}",
             format!("[{}]", i + 1).bold(),
             r.provider.cyan(),
             r.project_name,
             format_time(&r.message.timestamp).dimmed(),
+            score_str.yellow(),
         );
+
+        // Context before
+        for ctx in &r.context_before {
+            let role_tag = format_role_tag(&ctx.role);
+            let text = truncate(&ctx.text, 120);
+            println!("  {} {} {}", "┊".dimmed(), role_tag.dimmed(), text.dimmed());
+        }
+
+        // Matched message (highlighted)
         let preview = truncate(&r.message.text, 200);
-        println!("  {}", preview);
+        if !r.context_before.is_empty() || !r.context_after.is_empty() {
+            let role_tag = format_role_tag(&r.message.role);
+            println!("  {} {} {}", "▶".bold().green(), role_tag, preview);
+        } else {
+            println!("  {}", preview);
+        }
+
+        // Context after
+        for ctx in &r.context_after {
+            let role_tag = format_role_tag(&ctx.role);
+            let text = truncate(&ctx.text, 120);
+            println!("  {} {} {}", "┊".dimmed(), role_tag.dimmed(), text.dimmed());
+        }
     }
 }
 
@@ -177,4 +207,38 @@ fn indent(text: &str, prefix: &str) -> String {
         .map(|line| format!("{prefix}{line}"))
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+fn format_role_tag(role: &Role) -> String {
+    match role {
+        Role::User => "[User]".to_string(),
+        Role::Assistant => "[Assistant]".to_string(),
+        Role::System => "[System]".to_string(),
+        Role::Tool => "[Tool]".to_string(),
+    }
+}
+
+fn format_metadata_tags(metadata: &Option<SessionMetadata>) -> String {
+    let Some(meta) = metadata else {
+        return String::new();
+    };
+
+    let mut parts = Vec::new();
+
+    // Languages
+    for lang in &meta.languages {
+        parts.push(lang.clone());
+    }
+
+    // File count
+    if !meta.files_touched.is_empty() {
+        parts.push(format!("{}files", meta.files_touched.len()));
+    }
+
+    // Error indicator
+    if meta.has_errors {
+        parts.push("⚠err".to_string());
+    }
+
+    parts.join(" ")
 }

@@ -3,6 +3,7 @@ pub mod codex;
 
 use anyhow::Result;
 use crate::model::{Message, Project, SearchResult, Session};
+use crate::search::SearchOptions;
 
 pub trait Provider: Send + Sync {
     fn id(&self) -> &str;
@@ -11,7 +12,7 @@ pub trait Provider: Send + Sync {
     fn scan_projects(&self) -> Result<Vec<Project>>;
     fn list_sessions(&self, project: &Project) -> Result<Vec<Session>>;
     fn load_messages(&self, session: &Session) -> Result<Vec<Message>>;
-    fn search(&self, query: &str, limit: usize) -> Result<Vec<SearchResult>>;
+    fn search(&self, opts: &SearchOptions) -> Result<Vec<SearchResult>>;
 }
 
 pub struct ProviderRegistry {
@@ -64,7 +65,7 @@ impl ProviderRegistry {
         Ok(all)
     }
 
-    pub fn search_all(&self, query: &str, limit: usize, filter: Option<&[String]>) -> Result<Vec<SearchResult>> {
+    pub fn search_all(&self, opts: &SearchOptions, filter: Option<&[String]>) -> Result<Vec<SearchResult>> {
         let mut all = Vec::new();
         for provider in &self.providers {
             if !provider.is_available() {
@@ -75,13 +76,17 @@ impl ProviderRegistry {
                     continue;
                 }
             }
-            match provider.search(query, limit) {
+            match provider.search(opts) {
                 Ok(results) => all.extend(results),
                 Err(_) => continue,
             }
         }
-        all.sort_by(|a, b| b.message.timestamp.cmp(&a.message.timestamp));
-        all.truncate(limit);
+        if opts.sort_by_time {
+            all.sort_by(|a, b| b.message.timestamp.cmp(&a.message.timestamp));
+        } else {
+            all.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        }
+        all.truncate(opts.limit);
         Ok(all)
     }
 

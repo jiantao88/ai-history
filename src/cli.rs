@@ -38,12 +38,24 @@ pub enum Command {
 
     /// Search across all history
     Search {
-        /// Search query
+        /// Search query (supports multiple terms)
         query: String,
 
         /// Max results
         #[arg(short = 'n', long, default_value = "20")]
         limit: usize,
+
+        /// Show N messages before and after each match
+        #[arg(short = 'C', long = "context", default_value = "0")]
+        context_window: usize,
+
+        /// Require all query terms to match (AND mode)
+        #[arg(long = "all")]
+        require_all: bool,
+
+        /// Sort by time instead of relevance
+        #[arg(long = "sort-time")]
+        sort_by_time: bool,
     },
 
     /// Export a session

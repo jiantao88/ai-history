@@ -2,9 +2,10 @@ use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
-use crate::model::{Message, Project, Role, SearchResult, Session};
+use crate::model::{Message, Project, Role, SearchResult, Session, SessionMetadata};
 use crate::parse;
 use crate::provider::Provider;
+use crate::search::SearchOptions;
 
 pub struct CodexProvider {
     base_path: Option<PathBuf>,
@@ -127,32 +128,21 @@ impl Provider for CodexProvider {
         load_codex_messages(path)
     }
 
-    fn search(&self, query: &str, limit: usize) -> Result<Vec<SearchResult>> {
-        let query_lower = query.to_lowercase();
+    fn search(&self, opts: &SearchOptions) -> Result<Vec<SearchResult>> {
         let projects = self.scan_projects()?;
-        let mut results = Vec::new();
+        let mut entries = Vec::new();
 
-        'outer: for project in &projects {
+        for project in &projects {
             let sessions = self.list_sessions(&project)?;
-            for session in &sessions {
+            for session in sessions {
                 let messages = self.load_messages(&session)?;
-                for msg in &messages {
-                    if msg.text.to_lowercase().contains(&query_lower) {
-                        results.push(SearchResult {
-                            message: msg.clone(),
-                            session_id: session.id.clone(),
-                            project_name: project.name.clone(),
-                            provider: "codex".to_string(),
-                        });
-                        if results.len() >= limit {
-                            break 'outer;
-                        }
-                    }
+                if !messages.is_empty() {
+                    entries.push((session, messages, "codex".to_string()));
                 }
             }
         }
 
-        Ok(results)
+        Ok(crate::search::rank_and_search(entries, opts))
     }
 }
 
@@ -221,6 +211,10 @@ fn load_codex_session_metadata(path: &Path, target_cwd: &str) -> Result<Option<S
     let mut first_user_text: Option<String> = None;
     let mut model: Option<String> = None;
 
+    let mut files_set: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut tools_set: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut has_errors = false;
+
     for &(start, end) in &ranges {
         let line = &mmap[start..end];
         let Some(entry) = parse::parse_jsonl_line(line) else {
@@ -285,6 +279,21 @@ fn load_codex_session_metadata(path: &Path, target_cwd: &str) -> Result<Option<S
                             }
                         }
                     }
+                    if item_type == "function_call" {
+                        if let Some(name) = payload.get("name").and_then(|n| n.as_str()) {
+                            tools_set.insert(map_tool_name(name).to_string());
+                        }
+                        if let Some(args) = payload.get("arguments").and_then(|a| a.as_str()) {
+                            extract_file_paths_from_args(args, &mut files_set);
+                        }
+                    }
+                    if item_type == "function_call_output" && !has_errors {
+                        if let Some(output) = payload.get("output").and_then(|o| o.as_str()) {
+                            if contains_error_pattern(output) {
+                                has_errors = true;
+                            }
+                        }
+                    }
                 }
             }
             _ => {}
@@ -302,6 +311,23 @@ fn load_codex_session_metadata(path: &Path, target_cwd: &str) -> Result<Option<S
             .unwrap_or_default();
     }
 
+    let mut files_touched: Vec<String> = files_set.into_iter().collect();
+    files_touched.sort();
+    let mut tools_used: Vec<String> = tools_set.into_iter().collect();
+    tools_used.sort();
+    let languages = infer_languages(&files_touched);
+
+    let metadata = if files_touched.is_empty() && tools_used.is_empty() && !has_errors {
+        None
+    } else {
+        Some(SessionMetadata {
+            files_touched,
+            tools_used,
+            has_errors,
+            languages,
+        })
+    };
+
     Ok(Some(Session {
         provider: "codex".to_string(),
         id: session_id,
@@ -311,6 +337,7 @@ fn load_codex_session_metadata(path: &Path, target_cwd: &str) -> Result<Option<S
         first_time,
         last_time,
         summary: first_user_text,
+        metadata,
     }))
 }
 
@@ -508,5 +535,87 @@ fn truncate_string(s: &str, max: usize) -> String {
     } else {
         let t: String = s.chars().take(max).collect();
         format!("{t}...")
+    }
+}
+
+fn extract_file_paths_from_args(
+    args_str: &str,
+    files: &mut std::collections::HashSet<String>,
+) {
+    if let Ok(args) = serde_json::from_str::<serde_json::Value>(args_str) {
+        if let Some(cmd) = args.get("command").and_then(|c| c.as_str()) {
+            for word in cmd.split_whitespace() {
+                if looks_like_file_path(word) {
+                    files.insert(normalize_path(word));
+                }
+            }
+        }
+        if let Some(fp) = args.get("file_path").and_then(|f| f.as_str()) {
+            files.insert(normalize_path(fp));
+        }
+    }
+}
+
+fn looks_like_file_path(s: &str) -> bool {
+    if s.len() < 3 {
+        return false;
+    }
+    let has_ext = s.rfind('.').map(|i| i > 0 && i < s.len() - 1).unwrap_or(false);
+    let has_sep = s.contains('/');
+    (has_ext && has_sep) || s.starts_with("./") || s.starts_with("src/") || s.starts_with("tests/")
+}
+
+fn normalize_path(path: &str) -> String {
+    if let Some(home) = dirs::home_dir() {
+        let home_str = home.to_string_lossy();
+        if let Some(stripped) = path.strip_prefix(home_str.as_ref()) {
+            return format!("~{stripped}");
+        }
+    }
+    path.to_string()
+}
+
+const ERROR_PATTERNS: &[&str] = &["error", "failed", "panic", "traceback", "fatal"];
+
+fn contains_error_pattern(text: &str) -> bool {
+    let lower = text.to_lowercase();
+    ERROR_PATTERNS.iter().any(|p| lower.contains(p))
+}
+
+fn infer_languages(files: &[String]) -> Vec<String> {
+    let mut langs: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    for f in files {
+        if let Some(ext) = std::path::Path::new(f).extension().and_then(|e| e.to_str()) {
+            if let Some(lang) = ext_to_language(ext) {
+                langs.insert(lang);
+            }
+        }
+    }
+    let mut result: Vec<String> = langs.into_iter().map(String::from).collect();
+    result.sort();
+    result
+}
+
+fn ext_to_language(ext: &str) -> Option<&'static str> {
+    match ext {
+        "rs" => Some("Rust"),
+        "ts" | "tsx" => Some("TypeScript"),
+        "js" | "jsx" => Some("JavaScript"),
+        "py" => Some("Python"),
+        "go" => Some("Go"),
+        "java" => Some("Java"),
+        "kt" | "kts" => Some("Kotlin"),
+        "swift" => Some("Swift"),
+        "rb" => Some("Ruby"),
+        "c" | "h" => Some("C"),
+        "cpp" | "cc" | "cxx" | "hpp" => Some("C++"),
+        "cs" => Some("C#"),
+        "html" | "htm" => Some("HTML"),
+        "css" | "scss" | "sass" => Some("CSS"),
+        "sql" => Some("SQL"),
+        "sh" | "bash" | "zsh" => Some("Shell"),
+        "toml" | "yaml" | "yml" | "json" => Some("Config"),
+        "md" => Some("Markdown"),
+        _ => None,
     }
 }

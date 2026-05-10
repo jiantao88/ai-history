@@ -5,6 +5,7 @@ mod model;
 mod output;
 mod parse;
 mod provider;
+mod scoring;
 mod search;
 
 use anyhow::{bail, Result};
@@ -74,8 +75,15 @@ fn main() -> Result<()> {
             }
         }
 
-        Command::Search { query, limit } => {
-            let results = search::search_all(&registry, &query, limit, filter)?;
+        Command::Search { query, limit, context_window, require_all, sort_by_time } => {
+            let opts = search::SearchOptions {
+                query,
+                limit,
+                context_window,
+                require_all_terms: require_all,
+                sort_by_time,
+            };
+            let results = search::search_all(&registry, &opts, filter)?;
 
             if use_json {
                 output::json::print_search_results(&results);
