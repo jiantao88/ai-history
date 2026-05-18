@@ -1,5 +1,6 @@
 pub mod claude;
 pub mod codex;
+pub mod cursor;
 
 use anyhow::Result;
 use crate::model::{Message, Project, SearchResult, Session};
@@ -110,5 +111,6 @@ pub fn build_registry() -> ProviderRegistry {
     let mut registry = ProviderRegistry::new();
     registry.register(Box::new(claude::ClaudeProvider::new()));
     registry.register(Box::new(codex::CodexProvider::new()));
+    registry.register(Box::new(cursor::CursorProvider::new()));
     registry
 }
