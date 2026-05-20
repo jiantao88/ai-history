@@ -181,6 +181,10 @@ impl Provider for CursorProvider {
                     last_time: ms_to_rfc3339(updated),
                     summary: Some(name.to_string()),
                     metadata,
+                    is_subagent: false,
+                    parent_session_id: None,
+                    agent_type: None,
+                    agent_description: None,
                 })
             })
             .collect();

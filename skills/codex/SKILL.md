@@ -1,19 +1,19 @@
 ---
 name: ai-history
 description: |
-  Search and browse AI coding assistant chat history across providers (Claude Code, Codex CLI).
+  Search and browse AI coding assistant chat history across providers (Claude Code, Codex CLI, Cursor).
   Find past conversations, inject historical context into the current session, and search
   across all chat records. Use when asked to find past conversations, load context from
   previous sessions, or search chat history.
 license: MIT
 metadata:
   author: jiantao88
-  tags: ai-history, chat-history, context-sharing, claude, codex
+  tags: ai-history, chat-history, context-sharing, claude, codex, cursor
 ---
 
 # ai-history
 
-Search and browse AI chat history across Claude Code and Codex CLI.
+Search and browse AI chat history across Claude Code, Codex CLI, and Cursor.
 
 ## Prerequisites
 
@@ -54,7 +54,22 @@ Session IDs support prefix matching (e.g. `a247accc` matches the full UUID).
 ~/.cargo/bin/ai-history search "<query>" --limit 10 --json
 ```
 
-### Export a session as context
+### Load a session as context (digest — compressed summary)
+
+```bash
+~/.cargo/bin/ai-history context "<session-id>"
+```
+
+Outputs a structured digest: intent, key decisions, code changes, remaining issues, conclusion.
+For full uncompressed conversation, add `--full`.
+
+### Generate a standalone digest
+
+```bash
+~/.cargo/bin/ai-history digest "<session-id>" --json
+```
+
+### Export a session (full text)
 
 ```bash
 ~/.cargo/bin/ai-history export "<session-id>" --format prompt
@@ -67,8 +82,8 @@ or timestamps — ready to inject into the current conversation as context.
 
 1. **Find**: Use `list` → `sessions` → `show` to drill down to a specific conversation
 2. **Search**: Use `search` to find conversations by keyword across all providers
-3. **Inject context**: Use `export --format prompt` to get a past conversation,
-   then read and internalize it so you can continue the work
+3. **Inject context**: Use `context` to load a compressed digest of a past session,
+   or `context --full` for the complete conversation
 
 ## Output Formatting
 

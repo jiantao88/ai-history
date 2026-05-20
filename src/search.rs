@@ -157,6 +157,10 @@ mod tests {
             last_time: String::new(),
             summary: None,
             metadata: None,
+            is_subagent: false,
+            parent_session_id: None,
+            agent_type: None,
+            agent_description: None,
         }
     }
 

@@ -24,6 +24,10 @@ pub enum Command {
     Sessions {
         /// Project name (fuzzy matched)
         project: String,
+
+        /// Exclude subagent sessions
+        #[arg(long)]
+        no_subagents: bool,
     },
 
     /// Display a session's messages
@@ -66,6 +70,34 @@ pub enum Command {
         /// Export format
         #[arg(short, long, default_value = "md")]
         format: ExportFormat,
+    },
+
+    /// Export a session as context for another AI session (digest by default)
+    Context {
+        /// Session ID or path fragment
+        session: String,
+
+        /// Output full conversation instead of digest
+        #[arg(long)]
+        full: bool,
+
+        /// Use Claude API for enhanced digest (requires ANTHROPIC_API_KEY)
+        #[arg(long)]
+        llm: bool,
+    },
+
+    /// Generate a session digest (compressed summary)
+    Digest {
+        /// Session ID or path fragment
+        session: String,
+
+        /// Use Claude API for enhanced narrative (requires ANTHROPIC_API_KEY)
+        #[arg(long)]
+        llm: bool,
+
+        /// Skip cache and regenerate
+        #[arg(long)]
+        no_cache: bool,
     },
 }
 

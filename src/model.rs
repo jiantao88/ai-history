@@ -53,6 +53,14 @@ pub struct Session {
     pub summary: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<SessionMetadata>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub is_subagent: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_description: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

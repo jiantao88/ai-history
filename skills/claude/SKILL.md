@@ -1,8 +1,8 @@
 ---
 name: ai-history
-version: 0.1.0
+version: 0.2.0
 description: |
-  Search and browse AI coding assistant chat history across providers (Claude Code, Codex CLI).
+  Search and browse AI coding assistant chat history across providers (Claude Code, Codex CLI, Cursor).
   Find past conversations, inject historical context into the current session, and search
   across all chat records. Powered by the ai-history CLI tool.
 allowed-tools:
@@ -19,7 +19,7 @@ triggers:
 ## Overview
 
 This skill provides access to AI coding assistant chat history across multiple providers
-(Claude Code, Codex CLI). It uses the `ai-history` CLI tool installed at `~/.cargo/bin/ai-history`.
+(Claude Code, Codex CLI, Cursor). It uses the `ai-history` CLI tool installed at `~/.cargo/bin/ai-history`.
 
 ## Prerequisites
 
@@ -40,17 +40,7 @@ List all projects that have chat history.
 ~/.cargo/bin/ai-history list --json 2>/dev/null
 ```
 
-Parse the JSON output and present as a readable table:
-
-```
-AI CHAT HISTORY — PROJECTS
-════════════════════════════════════════════════════════════════
-#   Provider  Project                          Sessions  Last Active
-──  ────────  ───────────────────────────────  ────────  ───────────
-1   claude    ~/projects/myapp                 12        2026-05-08
-2   codex     ~/projects/myapp                 8         2026-05-07
-════════════════════════════════════════════════════════════════
-```
+Parse the JSON output and present as a readable table.
 
 ### `/ai-history sessions <project>`
 
@@ -60,8 +50,6 @@ List sessions for a project. The `<project>` argument supports fuzzy matching (s
 ~/.cargo/bin/ai-history sessions "<project>" --json 2>/dev/null
 ```
 
-Present as a table with session ID abbreviated to first 8 chars.
-
 ### `/ai-history show <session-id>`
 
 Show messages from a specific session. Session ID can be abbreviated (first 8+ chars).
@@ -69,9 +57,6 @@ Show messages from a specific session. Session ID can be abbreviated (first 8+ c
 ```bash
 ~/.cargo/bin/ai-history show "<session-id>" --compact --json 2>/dev/null
 ```
-
-Display the conversation in a readable format. If very long (>50 messages), show
-first 10 and last 10 with a summary in between.
 
 ### `/ai-history search <query>`
 
@@ -81,30 +66,34 @@ Search across all chat history for a keyword or phrase.
 ~/.cargo/bin/ai-history search "<query>" --limit 10 --json 2>/dev/null
 ```
 
-Truncate each text snippet to ~200 chars.
-
 ### `/ai-history context <session-id>`
 
-Export a session in prompt format and inject it as context into the current conversation.
+Load a past session as structured context (digest format — compressed summary of intent,
+decisions, code changes, and conclusions). This is the recommended way to inject history.
 
 ```bash
-~/.cargo/bin/ai-history export "<session-id>" --format prompt 2>/dev/null
+~/.cargo/bin/ai-history context "<session-id>" 2>/dev/null
 ```
 
 After fetching:
-1. Read and understand the exported conversation
+1. Read and understand the digest
 2. Present a brief summary:
    ```
-   CONTEXT LOADED
+   CONTEXT LOADED (Digest)
    ════════════════════════════════════════
    Session:  <summary>
    Provider: <provider>
    Project:  <project>
    Date:     <date>
-   Messages: <count> (User/Assistant only)
    ════════════════════════════════════════
    ```
 3. Tell the user you now have the context and can continue the work.
+
+For full uncompressed conversation (when digest isn't enough):
+
+```bash
+~/.cargo/bin/ai-history context "<session-id>" --full 2>/dev/null
+```
 
 ### `/ai-history context-search <query>`
 
@@ -113,6 +102,14 @@ Shortcut: search then automatically load the most relevant session as context.
 1. Run search: `~/.cargo/bin/ai-history search "<query>" --limit 5 --json 2>/dev/null`
 2. If one clear match, load it directly
 3. If multiple, ask the user which session to load
+
+### `/ai-history digest <session-id>`
+
+Generate a standalone digest (compressed summary) of a session.
+
+```bash
+~/.cargo/bin/ai-history digest "<session-id>" --json 2>/dev/null
+```
 
 ## Output Formatting
 

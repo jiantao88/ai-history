@@ -61,8 +61,10 @@ cargo install --path .
 /ai-history sessions myproject           # 列出会话
 /ai-history show <session-id>            # 查看对话
 /ai-history search "关键词"               # 搜索所有聊天记录
-/ai-history context <session-id>         # 加载历史会话作为上下文
+/ai-history context <session-id>         # 加载摘要（压缩版上下文）
+/ai-history context <session-id> --full  # 加载完整对话
 /ai-history context-search "关键词"       # 搜索并自动加载最相关的会话
+/ai-history digest <session-id>          # 生成独立摘要
 ```
 
 ## 在 Codex CLI 中使用
@@ -73,7 +75,8 @@ cargo install --path .
 /ai-history                              # 列出所有项目
 /ai-history sessions myproject           # 列出会话
 /ai-history search "关键词"               # 搜索所有聊天记录
-/ai-history context <session-id>         # 加载历史会话上下文
+/ai-history context <session-id>         # 加载历史会话摘要
+/ai-history context <session-id> --full  # 加载完整对话
 ```
 
 ## 作为 CLI 使用
@@ -85,6 +88,10 @@ ai-history list                                    # 列出项目
 ai-history sessions myproject                      # 列出会话（模糊匹配）
 ai-history show <session-id> --compact             # 仅 user/assistant
 ai-history search "认证 bug" -n 10                 # 搜索
+ai-history context <session-id>                    # 摘要（压缩版上下文）
+ai-history context <session-id> --full             # 完整对话
+ai-history digest <session-id>                     # 独立摘要
+ai-history digest <session-id> --llm               # LLM 增强摘要
 ai-history export <session-id> --format prompt     # 导出用于粘贴
 ai-history export <session-id> --format md         # Markdown 导出
 ai-history export <session-id> --format json       # JSON 导出

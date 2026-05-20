@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-`ai-history` is a standalone Rust CLI tool that searches and exports AI coding assistant chat history. It reads JSONL conversation data from Claude Code and Codex CLI, outputting in Markdown, JSON, or Prompt format.
+`ai-history` is a standalone Rust CLI tool that searches and exports AI coding assistant chat history. It reads conversation data from Claude Code, Codex CLI, and Cursor, outputting in Markdown, JSON, Prompt, or Digest format.
 
 Designed to be used inside other AI tool sessions to inject historical context.
 
@@ -10,9 +10,10 @@ Designed to be used inside other AI tool sessions to inject historical context.
 
 ```bash
 cargo build            # Debug build
-cargo test             # Run unit tests (7 tests in parse module)
+cargo test             # Run unit tests
 cargo build --release  # Release build (LTO + strip)
 cargo run -- list      # Test with real data
+cargo run -- digest <session-id>  # Test digest
 ```
 
 ## Architecture
@@ -23,11 +24,18 @@ src/
   cli.rs               # Clap derive subcommand definitions
   model.rs             # Provider-agnostic types: Project, Session, Message, SearchResult
   parse.rs             # JSONL parsing: mmap + simd-json + memchr line splitting
+  scoring.rs           # BM25 relevance scoring + tokenizer
   search.rs            # Cross-provider search delegation
+  digest/
+    mod.rs             # SessionDigest struct, format_digest(), get_or_create_digest()
+    extractor.rs       # Rule-based extraction engine (intent, decisions, code changes, issues)
+    cache.rs           # Disk cache with mtime+size invalidation
+    llm.rs             # Optional Claude API enhancement (--llm flag)
   provider/
     mod.rs             # Provider trait + ProviderRegistry
     claude.rs          # Claude Code: ~/.claude/projects/ JSONL parser
     codex.rs           # Codex CLI: ~/.codex/sessions/ rollout JSONL parser
+    cursor.rs          # Cursor: workspaceStorage vscdb SQLite parser
   output/
     mod.rs             # TTY detection
     human.rs           # Colored terminal output (tables, conversation view)
@@ -42,7 +50,10 @@ src/
 - **Flat Message model**: `Message.text` is pre-flattened from content blocks. Unlike the reference project (claude-code-history-viewer) which preserves raw JSON for frontend rendering, this CLI only needs text.
 - **Path decoding**: Claude encodes project paths with hyphens (`-Users-jack-myapp`). Decoded via filesystem-based recursive lookup in `claude.rs::decode_path_with_prefix()`.
 - **Codex deduplication**: Codex JSONL has duplicate messages in both `response_item` and `event_msg`. Only `response_item` is used for user/assistant messages.
+- **Cursor vscdb**: Cursor stores chat history in SQLite (`state.vscdb`) rather than JSONL. Uses `rusqlite` to query `cursorDiskKV` table, JSON-parses bubble arrays from workspace storage.
 - **Pipe detection**: `std::io::IsTerminal` — TTY gets colored output, pipe gets JSON.
+- **Session Digest**: Rule-based extraction (zero-cost, offline) compresses sessions to ~5% of original size. Extracts intent from first user message, decisions from thinking blocks, code changes from tool calls, issues from error patterns. Optional `--llm` flag enhances via Claude API. Cached to disk with mtime+size invalidation.
+- **Context defaults to digest**: `context <id>` outputs digest, `--full` restores original full-text behavior. Saves 10-20x tokens while preserving key information.
 
 ## Adding a New Provider
 

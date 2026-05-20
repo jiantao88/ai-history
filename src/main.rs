@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 mod cli;
+mod digest;
 mod model;
 mod output;
 mod parse;
@@ -31,7 +32,7 @@ fn main() -> Result<()> {
             }
         }
 
-        Command::Sessions { project } => {
+        Command::Sessions { project, no_subagents } => {
             let projects = registry.scan_all_projects(filter)?;
             let matched = projects
                 .iter()
@@ -42,7 +43,11 @@ fn main() -> Result<()> {
             };
 
             let provider = registry.get(&matched.provider).unwrap();
-            let sessions = provider.list_sessions(matched)?;
+            let mut sessions = provider.list_sessions(matched)?;
+
+            if no_subagents {
+                sessions.retain(|s| !s.is_subagent);
+            }
 
             if use_json {
                 output::json::print_sessions(&sessions);
@@ -109,6 +114,36 @@ fn main() -> Result<()> {
                 ExportFormat::Prompt => {
                     print!("{}", output::prompt::export_session(&found, &messages));
                 }
+            }
+        }
+
+        Command::Context { session, full, llm } => {
+            let (found, provider) = registry
+                .find_session(&session, filter)?
+                .ok_or_else(|| anyhow::anyhow!("Session not found: {session}"))?;
+
+            let messages = provider.load_messages(&found)?;
+
+            if full {
+                print!("{}", output::prompt::export_session(&found, &messages));
+            } else {
+                let d = digest::get_or_create_digest(&found, &messages, llm, false)?;
+                print!("{}", digest::format_digest(&d));
+            }
+        }
+
+        Command::Digest { session, llm, no_cache } => {
+            let (found, provider) = registry
+                .find_session(&session, filter)?
+                .ok_or_else(|| anyhow::anyhow!("Session not found: {session}"))?;
+
+            let messages = provider.load_messages(&found)?;
+            let d = digest::get_or_create_digest(&found, &messages, llm, no_cache)?;
+
+            if use_json {
+                println!("{}", serde_json::to_string_pretty(&d).unwrap());
+            } else {
+                print!("{}", digest::format_digest(&d));
             }
         }
     }

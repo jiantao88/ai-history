@@ -61,8 +61,10 @@ After installation, use `/ai-history` in any Claude Code session:
 /ai-history sessions myproject           # list sessions
 /ai-history show <session-id>            # view a conversation
 /ai-history search "keyword"             # search across all history
-/ai-history context <session-id>         # load a past session as context
+/ai-history context <session-id>         # load digest (compressed summary)
+/ai-history context <session-id> --full  # load full conversation
 /ai-history context-search "keyword"     # search + auto-load best match
+/ai-history digest <session-id>          # generate standalone digest
 ```
 
 ## Use in Codex CLI
@@ -73,7 +75,8 @@ After installation, use `/ai-history` in any Codex session:
 /ai-history                              # list all projects
 /ai-history sessions myproject           # list sessions
 /ai-history search "keyword"             # search across all history
-/ai-history context <session-id>         # load context from a past session
+/ai-history context <session-id>         # load digest from a past session
+/ai-history context <session-id> --full  # load full conversation
 ```
 
 ## Use as CLI
@@ -85,6 +88,10 @@ ai-history list                                    # list projects
 ai-history sessions myproject                      # list sessions (fuzzy match)
 ai-history show <session-id> --compact             # user/assistant only
 ai-history search "auth bug" -n 10                 # search
+ai-history context <session-id>                    # digest (compressed summary)
+ai-history context <session-id> --full             # full conversation
+ai-history digest <session-id>                     # standalone digest
+ai-history digest <session-id> --llm               # LLM-enhanced digest
 ai-history export <session-id> --format prompt     # export for pasting
 ai-history export <session-id> --format md         # Markdown export
 ai-history export <session-id> --format json       # JSON export

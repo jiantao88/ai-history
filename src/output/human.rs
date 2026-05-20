@@ -45,7 +45,15 @@ pub fn print_sessions(sessions: &[Session]) {
 
     for s in sessions {
         let summary = s.summary.as_deref().unwrap_or("-");
-        let tags = format_metadata_tags(&s.metadata);
+        let mut tags = format_metadata_tags(&s.metadata);
+        if s.is_subagent {
+            let agent_tag = s.agent_type.as_deref().unwrap_or("subagent");
+            if tags.is_empty() {
+                tags = format!("[{}]", agent_tag);
+            } else {
+                tags = format!("[{}] {}", agent_tag, tags);
+            }
+        }
         println!(
             "{:<36} {:>5} {:<20} {:<40} {}",
             truncate(&s.id, 36).dimmed(),

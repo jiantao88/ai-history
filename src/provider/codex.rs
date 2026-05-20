@@ -338,6 +338,10 @@ fn load_codex_session_metadata(path: &Path, target_cwd: &str) -> Result<Option<S
         last_time,
         summary: first_user_text,
         metadata,
+        is_subagent: false,
+        parent_session_id: None,
+        agent_type: None,
+        agent_description: None,
     }))
 }
 

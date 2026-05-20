@@ -84,7 +84,32 @@ impl Provider for ClaudeProvider {
             let path = entry.path();
             if path.extension().map(|e| e == "jsonl").unwrap_or(false) {
                 if let Some(session) = load_session_metadata(path, &project.name)? {
+                    let parent_id = session.id.clone();
                     sessions.push(session);
+
+                    let subagents_dir = dir.join(&parent_id).join("subagents");
+                    if subagents_dir.is_dir() {
+                        if let Ok(entries) = std::fs::read_dir(&subagents_dir) {
+                            for sa_entry in entries.flatten() {
+                                let sa_path = sa_entry.path();
+                                if sa_path.extension().map(|e| e == "jsonl").unwrap_or(false) {
+                                    if let Some(mut sa_session) = load_session_metadata(&sa_path, &project.name)? {
+                                        sa_session.is_subagent = true;
+                                        sa_session.parent_session_id = Some(parent_id.clone());
+                                        sa_session.id = sa_path.file_stem()
+                                            .map(|s| s.to_string_lossy().to_string())
+                                            .unwrap_or_else(|| sa_session.id.clone());
+                                        let meta_path = sa_path.with_extension("meta.json");
+                                        if let Some((agent_type, description)) = load_subagent_meta(&meta_path) {
+                                            sa_session.agent_type = Some(agent_type);
+                                            sa_session.agent_description = Some(description);
+                                        }
+                                        sessions.push(sa_session);
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -95,7 +120,7 @@ impl Provider for ClaudeProvider {
 
     fn load_messages(&self, session: &Session) -> Result<Vec<Message>> {
         let path = Path::new(&session.file_path);
-        load_claude_messages(path)
+        load_claude_messages(path, session.is_subagent)
     }
 
     fn search(&self, opts: &SearchOptions) -> Result<Vec<SearchResult>> {
@@ -148,6 +173,14 @@ fn newest_jsonl_mtime(dir: &Path) -> Option<String> {
             let dt: chrono::DateTime<chrono::Utc> = t.into();
             dt.to_rfc3339()
         })
+}
+
+fn load_subagent_meta(path: &Path) -> Option<(String, String)> {
+    let data = std::fs::read_to_string(path).ok()?;
+    let json: serde_json::Value = serde_json::from_str(&data).ok()?;
+    let agent_type = json.get("agentType").and_then(|v| v.as_str())?.to_string();
+    let description = json.get("description").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    Some((agent_type, description))
 }
 
 fn decode_project_path(encoded: &str) -> String {
@@ -387,6 +420,10 @@ fn load_session_metadata(path: &Path, project_name: &str) -> Result<Option<Sessi
         last_time,
         summary: final_summary,
         metadata,
+        is_subagent: false,
+        parent_session_id: None,
+        agent_type: None,
+        agent_description: None,
     }))
 }
 
@@ -397,7 +434,7 @@ fn find_timestamp_fast(line: &[u8]) -> Option<usize> {
         .map(|pos| pos + needle.len())
 }
 
-fn load_claude_messages(path: &Path) -> Result<Vec<Message>> {
+fn load_claude_messages(path: &Path, is_subagent: bool) -> Result<Vec<Message>> {
     let mmap = parse::mmap_file(path)?;
     let ranges = parse::find_line_ranges(&mmap);
     let mut messages = Vec::new();
@@ -418,12 +455,14 @@ fn load_claude_messages(path: &Path) -> Result<Vec<Message>> {
             continue;
         }
 
-        let is_sidechain = entry
-            .get("isSidechain")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-        if is_sidechain {
-            continue;
+        if !is_subagent {
+            let is_sidechain = entry
+                .get("isSidechain")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            if is_sidechain {
+                continue;
+            }
         }
 
         let timestamp = entry
