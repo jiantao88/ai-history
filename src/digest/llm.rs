@@ -11,6 +11,10 @@ pub fn enhance_digest(
     let api_key = std::env::var("ANTHROPIC_API_KEY")
         .map_err(|_| anyhow::anyhow!("ANTHROPIC_API_KEY not set. Use --llm only with a valid API key."))?;
 
+    let base_url = std::env::var("ANTHROPIC_BASE_URL")
+        .unwrap_or_else(|_| "https://api.anthropic.com".to_string());
+    let api_url = format!("{}/v1/messages", base_url.trim_end_matches('/'));
+
     let condensed = build_condensed_conversation(messages);
     let rule_text = super::format_digest(rule_digest);
 
@@ -31,7 +35,7 @@ pub fn enhance_digest(
 
     let client = reqwest::blocking::Client::new();
     let response = client
-        .post("https://api.anthropic.com/v1/messages")
+        .post(&api_url)
         .header("x-api-key", &api_key)
         .header("anthropic-version", "2023-06-01")
         .header("content-type", "application/json")
@@ -53,7 +57,9 @@ pub fn enhance_digest(
         .as_str()
         .ok_or_else(|| anyhow::anyhow!("Unexpected API response format"))?;
 
-    let enhanced: serde_json::Value = serde_json::from_str(content_text)
+    let json_text = strip_code_fence(content_text);
+
+    let enhanced: serde_json::Value = serde_json::from_str(&json_text)
         .map_err(|e| anyhow::anyhow!("Failed to parse LLM JSON: {e}"))?;
 
     let mut digest = rule_digest.clone();
@@ -154,5 +160,20 @@ fn build_condensed_conversation(messages: &[Message]) -> String {
         format!("{start}\n\n[... middle of conversation omitted ...]\n\n{end}")
     } else {
         out
+    }
+}
+
+fn strip_code_fence(s: &str) -> String {
+    let trimmed = s.trim();
+    if trimmed.starts_with("```") {
+        let without_open = if let Some(pos) = trimmed.find('\n') {
+            &trimmed[pos + 1..]
+        } else {
+            trimmed.trim_start_matches('`')
+        };
+        let without_close = without_open.trim_end().trim_end_matches("```").trim();
+        without_close.to_string()
+    } else {
+        trimmed.to_string()
     }
 }

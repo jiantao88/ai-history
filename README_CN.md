@@ -97,6 +97,56 @@ ai-history export <session-id> --format md         # Markdown 导出
 ai-history export <session-id> --format json       # JSON 导出
 ```
 
+### 工作总结（日报）
+
+生成按时间范围聚合的 AI 工作总结报告：
+
+```bash
+ai-history summary                                 # 今天的总结
+ai-history summary myproject                       # 按项目过滤
+ai-history summary --date 2026-05-20               # 指定日期
+ai-history summary --range 2026-05-19..2026-05-21  # 日期范围
+ai-history summary --ai-summary                    # LLM 增强摘要
+ai-history summary --json                          # JSON 输出
+```
+
+输出示例：
+
+```
+AI WORK SUMMARY — 2026-05-21
+══════════════════════════════════════════════════════════════════
+Sessions: 5    Messages: 452    Active time: ~7h 52m
+──────────────────────────────────────────────────────────────────
+#   Time           Msgs  Type      Summary
+1   09:19-09:31      42  开发      修复iOS动态视频封面旋转90度的问题
+2   11:00-12:40      87  优化      排查ScrollView内Touch替换为Pressable
+3   12:42-14:40     119  代码审查  审查项目代码变更
+4   16:58-17:36      18  新功能    探索并提出ai-history日报总结功能需求
+5   17:40-21:30     186  新功能    实现ai-history summary功能
+══════════════════════════════════════════════════════════════════
+```
+
+### LLM 配置
+
+`--llm`（digest）和 `--ai-summary`（summary）功能需要 Claude API key。通过环境变量配置：
+
+```bash
+# 官方 Anthropic API
+export ANTHROPIC_API_KEY="sk-ant-..."
+
+# 或使用自定义代理
+export ANTHROPIC_BASE_URL="https://your-proxy.example.com"
+export ANTHROPIC_AUTH_TOKEN="your-token"    # 使用 Bearer 认证
+export ANTHROPIC_MODEL="claude-sonnet-4-6"  # 指定模型（默认: claude-haiku-4-5）
+```
+
+| 环境变量 | 说明 |
+|----------|------|
+| `ANTHROPIC_API_KEY` | API 密钥（使用 `x-api-key` 头） |
+| `ANTHROPIC_AUTH_TOKEN` | 替代令牌（使用 `Authorization: Bearer` 头，优先于 `ANTHROPIC_API_KEY`） |
+| `ANTHROPIC_BASE_URL` | 自定义 API 端点（默认：`https://api.anthropic.com`） |
+| `ANTHROPIC_MODEL` | LLM 功能使用的模型（默认：`claude-haiku-4-5-20251001`） |
+
 Session ID 支持前缀匹配——输入 `a247accc` 无需完整 UUID。
 
 ### 搜索选项

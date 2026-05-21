@@ -8,6 +8,7 @@ mod parse;
 mod provider;
 mod scoring;
 mod search;
+mod summary;
 
 use anyhow::{bail, Result};
 use clap::Parser;
@@ -144,6 +145,30 @@ fn main() -> Result<()> {
                 println!("{}", serde_json::to_string_pretty(&d).unwrap());
             } else {
                 print!("{}", digest::format_digest(&d));
+            }
+        }
+
+        Command::Summary { project, date, range, today, ai_summary } => {
+            let date_range = summary::parse_date_range(
+                date.as_deref(),
+                range.as_deref(),
+                today,
+            )?;
+
+            let result = summary::build_summary(
+                &registry,
+                project.as_deref(),
+                &date_range,
+                filter,
+                ai_summary,
+            )?;
+
+            if use_json {
+                output::json::print_summary(&result);
+            } else if is_tty() {
+                output::human::print_summary(&result);
+            } else {
+                output::human::print_summary_plain(&result);
             }
         }
     }

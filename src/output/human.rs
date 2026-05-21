@@ -1,4 +1,5 @@
 use crate::model::{Message, Project, Role, SearchResult, Session, SessionMetadata};
+use crate::summary::WorkSummary;
 use owo_colors::OwoColorize;
 
 pub fn print_projects(projects: &[Project]) {
@@ -226,6 +227,119 @@ fn format_role_tag(role: &Role) -> String {
     }
 }
 
+pub fn print_summary(summary: &WorkSummary) {
+    println!(
+        "\n{}",
+        format!("AI WORK SUMMARY — {}", summary.date_label)
+            .bold()
+            .cyan()
+    );
+    println!("{}", "═".repeat(70));
+    println!(
+        "Sessions: {}    Messages: {}",
+        summary.total_sessions.to_string().bold(),
+        summary.total_messages.to_string().bold(),
+    );
+
+    let total_active: u64 = summary.projects.iter().map(|p| p.active_time_minutes).sum();
+    if total_active > 0 {
+        let hours = total_active / 60;
+        let mins = total_active % 60;
+        if hours > 0 {
+            print!("    Active time: ~{}h {}m", hours, mins);
+        } else {
+            print!("    Active time: ~{}m", mins);
+        }
+    }
+    println!();
+
+    let multi_project = summary.projects.len() > 1;
+
+    println!("{}", "───────────────────────────────────────────────────────────────────────");
+    if multi_project {
+        println!(
+            "{:<4} {:<16} {:>5}  {:<8} {:<30} {}",
+            "#".bold(),
+            "Time".bold(),
+            "Msgs".bold(),
+            "Type".bold(),
+            "Summary".bold(),
+            "Project".bold(),
+        );
+    } else {
+        if let Some(first) = summary.projects.first() {
+            println!(
+                "{}",
+                format!("Project: {}", first.project).dimmed()
+            );
+        }
+        println!(
+            "{:<4} {:<16} {:>5}  {:<8} {}",
+            "#".bold(),
+            "Time".bold(),
+            "Msgs".bold(),
+            "Type".bold(),
+            "Summary".bold(),
+        );
+    }
+    println!("{}", "───────────────────────────────────────────────────────────────────────");
+
+    let mut idx = 1;
+    for proj in &summary.projects {
+        for entry in &proj.sessions {
+            let time_range = format!("{}-{}", entry.time_start, entry.time_end);
+            let type_colored = match entry.work_type.as_str() {
+                "bug修复" => entry.work_type.red().to_string(),
+                "新功能" => entry.work_type.green().to_string(),
+                "优化" => entry.work_type.yellow().to_string(),
+                "重构" => entry.work_type.blue().to_string(),
+                "代码审查" => entry.work_type.magenta().to_string(),
+                _ => entry.work_type.dimmed().to_string(),
+            };
+            if multi_project {
+                let proj_short = truncate(&entry.project, 20);
+                println!(
+                    "{:<4} {:<16} {:>5}  {:<8} {:<30} {}",
+                    idx,
+                    time_range,
+                    entry.message_count,
+                    type_colored,
+                    truncate(&entry.summary, 30),
+                    proj_short.dimmed(),
+                );
+            } else {
+                println!(
+                    "{:<4} {:<16} {:>5}  {:<8} {}",
+                    idx,
+                    time_range,
+                    entry.message_count,
+                    type_colored,
+                    truncate(&entry.summary, 45),
+                );
+            }
+            idx += 1;
+        }
+    }
+    println!("{}", "═".repeat(70));
+}
+
+pub fn print_summary_plain(summary: &WorkSummary) {
+    for proj in &summary.projects {
+        for entry in &proj.sessions {
+            println!(
+                "{}\t{}-{}\t{}\t{}\t{}\t{}",
+                entry.id,
+                entry.time_start,
+                entry.time_end,
+                entry.message_count,
+                entry.work_type,
+                entry.summary,
+                entry.project,
+            );
+        }
+    }
+}
+
 fn format_metadata_tags(metadata: &Option<SessionMetadata>) -> String {
     let Some(meta) = metadata else {
         return String::new();
@@ -233,17 +347,14 @@ fn format_metadata_tags(metadata: &Option<SessionMetadata>) -> String {
 
     let mut parts = Vec::new();
 
-    // Languages
     for lang in &meta.languages {
         parts.push(lang.clone());
     }
 
-    // File count
     if !meta.files_touched.is_empty() {
         parts.push(format!("{}files", meta.files_touched.len()));
     }
 
-    // Error indicator
     if meta.has_errors {
         parts.push("⚠err".to_string());
     }

@@ -97,6 +97,56 @@ ai-history export <session-id> --format md         # Markdown export
 ai-history export <session-id> --format json       # JSON export
 ```
 
+### Summary (Work Report)
+
+Generate a daily work summary across all AI sessions:
+
+```bash
+ai-history summary                                 # today's summary
+ai-history summary myproject                       # filter by project
+ai-history summary --date 2026-05-20               # specific date
+ai-history summary --range 2026-05-19..2026-05-21  # date range
+ai-history summary --ai-summary                    # LLM-enhanced summary
+ai-history summary --json                          # JSON output
+```
+
+Output example:
+
+```
+AI WORK SUMMARY — 2026-05-21
+══════════════════════════════════════════════════════════════════
+Sessions: 5    Messages: 452    Active time: ~7h 52m
+──────────────────────────────────────────────────────────────────
+#   Time           Msgs  Type      Summary
+1   09:19-09:31      42  开发      修复iOS动态视频封面旋转90度的问题
+2   11:00-12:40      87  优化      排查ScrollView内Touch替换为Pressable
+3   12:42-14:40     119  代码审查  审查项目代码变更
+4   16:58-17:36      18  新功能    探索并提出ai-history日报总结功能需求
+5   17:40-21:30     186  新功能    实现ai-history summary功能
+══════════════════════════════════════════════════════════════════
+```
+
+### LLM Configuration
+
+The `--llm` (digest) and `--ai-summary` (summary) features require a Claude API key. Configure via environment variables:
+
+```bash
+# Official Anthropic API
+export ANTHROPIC_API_KEY="sk-ant-..."
+
+# Or use a custom proxy
+export ANTHROPIC_BASE_URL="https://your-proxy.example.com"
+export ANTHROPIC_AUTH_TOKEN="your-token"    # uses Bearer auth
+export ANTHROPIC_MODEL="claude-sonnet-4-6"  # override model (default: claude-haiku-4-5)
+```
+
+| Variable | Description |
+|----------|-------------|
+| `ANTHROPIC_API_KEY` | API key (uses `x-api-key` header) |
+| `ANTHROPIC_AUTH_TOKEN` | Alternative token (uses `Authorization: Bearer` header, takes priority over `ANTHROPIC_API_KEY`) |
+| `ANTHROPIC_BASE_URL` | Custom API endpoint (default: `https://api.anthropic.com`) |
+| `ANTHROPIC_MODEL` | Model to use for LLM features (default: `claude-haiku-4-5-20251001`) |
+
 Session IDs support prefix matching — type `a247accc` instead of the full UUID.
 
 ### Search Options

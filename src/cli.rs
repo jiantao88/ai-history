@@ -86,6 +86,28 @@ pub enum Command {
         llm: bool,
     },
 
+    /// Summarize AI work for a time period
+    Summary {
+        /// Project name (fuzzy matched); omit to summarize all projects
+        project: Option<String>,
+
+        /// Summarize a specific date (YYYY-MM-DD)
+        #[arg(long)]
+        date: Option<String>,
+
+        /// Summarize a date range (YYYY-MM-DD..YYYY-MM-DD)
+        #[arg(long)]
+        range: Option<String>,
+
+        /// Summarize today (default when no date/range given)
+        #[arg(long)]
+        today: bool,
+
+        /// Use Claude API for enhanced summary (requires ANTHROPIC_API_KEY)
+        #[arg(long)]
+        ai_summary: bool,
+    },
+
     /// Generate a session digest (compressed summary)
     Digest {
         /// Session ID or path fragment
