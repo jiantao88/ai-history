@@ -257,11 +257,17 @@ ai-history list --json | jq '.[] | select(.provider == "cursor")'
 
 ## Supported Providers
 
-| Provider | Data Location |
-|----------|--------------|
-| Claude Code | `~/.claude/projects/{encoded-path}/*.jsonl` |
-| Codex CLI | `~/.codex/sessions/**/rollout-*.jsonl` |
-| Cursor | `~/Library/Application Support/Cursor/User/workspaceStorage/*/state.vscdb` (macOS) |
+| Provider | Data Location | Notes |
+|----------|--------------|-------|
+| Claude Code | `~/.claude/projects/{encoded-path}/*.jsonl` | Full support |
+| Codex CLI | `~/.codex/sessions/**/rollout-*.jsonl` | Uses file mtime when timestamps missing |
+| Cursor | `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb` (macOS) | Scans global database for all workspaces |
+
+### Provider Implementation Details
+
+**Codex**: When session files lack timestamps in JSONL, falls back to file modification time for accurate time-based filtering in `summary` command.
+
+**Cursor**: Reads from the global database (`globalStorage/state.vscdb`) instead of per-workspace databases. Uses `workspaceIdentifier` field to map composers to workspaces. Scans ~800 composers in ~60ms using optimized SQL queries with `json_extract` and `json_array_length`.
 
 ## Adding a New Provider
 
