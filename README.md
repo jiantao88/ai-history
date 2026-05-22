@@ -14,22 +14,81 @@ Every AI session starts from zero. Your assistant doesn't remember yesterday's d
 
 `ai-history` reads chat history from multiple AI tools and makes it available anywhere — as a slash command inside Claude Code or Codex, or as a CLI tool you can pipe into any workflow.
 
+```mermaid
+graph LR
+    A["Claude Code<br/><code>~/.claude/</code>"] --> D["ai-history"]
+    B["Codex CLI<br/><code>~/.codex/</code>"] --> D
+    C["Cursor<br/><code>state.vscdb</code>"] --> D
+    D --> E["Markdown"]
+    D --> F["JSON"]
+    D --> G["Prompt"]
+    D --> H["Summary"]
+    E --> I["Paste into any AI tool"]
+    F --> I
+    G --> I
+    H --> I
+
+    style D fill:#4a9eff,color:#fff,stroke:none
+    style I fill:#2ecc71,color:#fff,stroke:none
 ```
-┌─────────────┐     ┌─────────────┐     ┌──────────────────┐
-│ Claude Code  │────▶│             │────▶│  Markdown / JSON  │
-│  ~/.claude/  │     │             │     │  / Prompt format  │
-├─────────────┤     │  ai-history │     └────────┬─────────┘
-│  Codex CLI   │────▶│             │              │
-│  ~/.codex/   │     │             │              ▼
-├─────────────┤     │             │     Paste into any AI tool
-│   Cursor     │────▶│             │
-│  (vscdb)     │     └─────────────┘
-└─────────────┘
+
+## Features
+
+```mermaid
+graph TD
+    CLI["ai-history CLI"]
+    CLI --> Search["search<br/>BM25 relevance"]
+    CLI --> Browse["list / sessions / show<br/>Browse history"]
+    CLI --> Export["export<br/>md / json / prompt"]
+    CLI --> Context["context / digest<br/>Compressed summary"]
+    CLI --> Summary["summary<br/>Daily work report"]
+
+    Context -.->|"--llm"| LLM["Claude API"]
+    Summary -.->|"--ai-summary"| LLM
+
+    style CLI fill:#4a9eff,color:#fff,stroke:none
+    style LLM fill:#f39c12,color:#fff,stroke:none
 ```
 
 ## Architecture
 
-See the interactive architecture diagram: [docs/architecture.html](docs/architecture.html)
+```mermaid
+graph TB
+    subgraph Providers
+        P1["claude.rs<br/>JSONL parser"]
+        P2["codex.rs<br/>JSONL parser"]
+        P3["cursor.rs<br/>SQLite parser"]
+    end
+
+    subgraph Core
+        Registry["ProviderRegistry"]
+        Model["Session / Message"]
+        Scoring["BM25 Scoring"]
+        Digest["Digest Engine"]
+        SummaryMod["Summary Engine"]
+    end
+
+    subgraph Output
+        Human["Colored Terminal"]
+        JSON["JSON"]
+        MD["Markdown"]
+        Prompt["Prompt"]
+    end
+
+    P1 & P2 & P3 --> Registry
+    Registry --> Model
+    Model --> Scoring
+    Model --> Digest
+    Model --> SummaryMod
+    Digest -.->|optional| LLM2["Claude API"]
+    SummaryMod -.->|optional| LLM2
+    Model --> Human & JSON & MD & Prompt
+
+    style Registry fill:#4a9eff,color:#fff,stroke:none
+    style LLM2 fill:#f39c12,color:#fff,stroke:none
+```
+
+See also: [interactive architecture diagram](docs/architecture.html)
 
 ## Installation
 
@@ -108,6 +167,19 @@ ai-history summary --date 2026-05-20               # specific date
 ai-history summary --range 2026-05-19..2026-05-21  # date range
 ai-history summary --ai-summary                    # LLM-enhanced summary
 ai-history summary --json                          # JSON output
+```
+
+```mermaid
+graph LR
+    S["ai-history summary"] --> V1["V1: Rule-based<br/>zero-cost, offline"]
+    S -->|"--ai-summary"| V2["V2: LLM-enhanced<br/>Claude API"]
+    V1 --> Out["Work Report"]
+    V2 --> Out
+    V2 -.->|"fallback on error"| V1
+
+    style V1 fill:#2ecc71,color:#fff,stroke:none
+    style V2 fill:#f39c12,color:#fff,stroke:none
+    style Out fill:#4a9eff,color:#fff,stroke:none
 ```
 
 Output example:

@@ -14,20 +14,79 @@
 
 `ai-history` 读取多个 AI 工具的聊天记录，让你可以在任何地方使用它们——作为 Claude Code 或 Codex 中的斜杠命令，或者作为可以管道到任何工作流的 CLI 工具。
 
+```mermaid
+graph LR
+    A["Claude Code<br/><code>~/.claude/</code>"] --> D["ai-history"]
+    B["Codex CLI<br/><code>~/.codex/</code>"] --> D
+    C["Cursor<br/><code>state.vscdb</code>"] --> D
+    D --> E["Markdown"]
+    D --> F["JSON"]
+    D --> G["Prompt"]
+    D --> H["Summary"]
+    E --> I["粘贴到任意 AI 工具"]
+    F --> I
+    G --> I
+    H --> I
+
+    style D fill:#4a9eff,color:#fff,stroke:none
+    style I fill:#2ecc71,color:#fff,stroke:none
 ```
-┌─────────────┐     ┌─────────────┐     ┌──────────────────┐
-│ Claude Code  │────▶│             │────▶│  Markdown / JSON  │
-│  ~/.claude/  │     │             │     │  / Prompt 格式    │
-├─────────────┤     │  ai-history │     └────────┬─────────┘
-│  Codex CLI   │────▶│             │              │
-│  ~/.codex/   │     │             │              ▼
-├─────────────┤     │             │     粘贴到任意 AI 工具中
-│   Cursor     │────▶│             │
-│  (vscdb)     │     └─────────────┘
-└─────────────┘
+
+## 功能概览
+
+```mermaid
+graph TD
+    CLI["ai-history CLI"]
+    CLI --> Search["search<br/>BM25 相关性搜索"]
+    CLI --> Browse["list / sessions / show<br/>浏览历史记录"]
+    CLI --> Export["export<br/>md / json / prompt"]
+    CLI --> Context["context / digest<br/>压缩摘要"]
+    CLI --> Summary["summary<br/>工作日报"]
+
+    Context -.->|"--llm"| LLM["Claude API"]
+    Summary -.->|"--ai-summary"| LLM
+
+    style CLI fill:#4a9eff,color:#fff,stroke:none
+    style LLM fill:#f39c12,color:#fff,stroke:none
 ```
 
 ## 架构
+
+```mermaid
+graph TB
+    subgraph Providers
+        P1["claude.rs<br/>JSONL 解析"]
+        P2["codex.rs<br/>JSONL 解析"]
+        P3["cursor.rs<br/>SQLite 解析"]
+    end
+
+    subgraph Core
+        Registry["ProviderRegistry"]
+        Model["Session / Message"]
+        Scoring["BM25 评分"]
+        Digest["摘要引擎"]
+        SummaryMod["总结引擎"]
+    end
+
+    subgraph Output
+        Human["彩色终端"]
+        JSON["JSON"]
+        MD["Markdown"]
+        Prompt["Prompt"]
+    end
+
+    P1 & P2 & P3 --> Registry
+    Registry --> Model
+    Model --> Scoring
+    Model --> Digest
+    Model --> SummaryMod
+    Digest -.->|可选| LLM2["Claude API"]
+    SummaryMod -.->|可选| LLM2
+    Model --> Human & JSON & MD & Prompt
+
+    style Registry fill:#4a9eff,color:#fff,stroke:none
+    style LLM2 fill:#f39c12,color:#fff,stroke:none
+```
 
 查看交互式架构图：[docs/architecture.html](docs/architecture.html)
 
@@ -108,6 +167,19 @@ ai-history summary --date 2026-05-20               # 指定日期
 ai-history summary --range 2026-05-19..2026-05-21  # 日期范围
 ai-history summary --ai-summary                    # LLM 增强摘要
 ai-history summary --json                          # JSON 输出
+```
+
+```mermaid
+graph LR
+    S["ai-history summary"] --> V1["V1: 规则提取<br/>零成本, 离线"]
+    S -->|"--ai-summary"| V2["V2: LLM 增强<br/>Claude API"]
+    V1 --> Out["工作报告"]
+    V2 --> Out
+    V2 -.->|"失败时回退"| V1
+
+    style V1 fill:#2ecc71,color:#fff,stroke:none
+    style V2 fill:#f39c12,color:#fff,stroke:none
+    style Out fill:#4a9eff,color:#fff,stroke:none
 ```
 
 输出示例：
