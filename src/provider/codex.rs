@@ -25,7 +25,9 @@ fn get_base_path() -> Option<PathBuf> {
             return Some(path);
         }
     }
-    dirs::home_dir().map(|h| h.join(".codex")).filter(|p| p.exists())
+    dirs::home_dir()
+        .map(|h| h.join(".codex"))
+        .filter(|p| p.exists())
 }
 
 impl Provider for CodexProvider {
@@ -43,8 +45,7 @@ impl Provider for CodexProvider {
         };
         let sessions = base.join("sessions");
         let archived = base.join("archived_sessions");
-        (sessions.exists() && sessions.is_dir())
-            || (archived.exists() && archived.is_dir())
+        (sessions.exists() && sessions.is_dir()) || (archived.exists() && archived.is_dir())
     }
 
     fn scan_projects(&self) -> Result<Vec<Project>> {
@@ -157,6 +158,19 @@ fn is_rollout_file(path: &Path) -> bool {
     name.starts_with("rollout-") && name.ends_with(".jsonl")
 }
 
+fn codex_entry_timestamp(entry: &serde_json::Value) -> Option<&str> {
+    entry
+        .get("timestamp")
+        .and_then(|t| t.as_str())
+        .or_else(|| entry.get("ts").and_then(|t| t.as_str()))
+        .or_else(|| {
+            entry
+                .get("payload")
+                .and_then(|p| p.get("timestamp"))
+                .and_then(|t| t.as_str())
+        })
+}
+
 fn extract_codex_session_info(path: &Path) -> Option<(String, String)> {
     let mmap = parse::mmap_file(path).ok()?;
     let ranges = parse::find_line_ranges(&mmap);
@@ -179,7 +193,7 @@ fn extract_codex_session_info(path: &Path) -> Option<(String, String)> {
             }
         }
 
-        if let Some(ts) = entry.get("ts").and_then(|t| t.as_str()) {
+        if let Some(ts) = codex_entry_timestamp(&entry) {
             if ts > last_ts.as_str() {
                 last_ts = ts.to_string();
             }
@@ -222,11 +236,7 @@ fn load_codex_session_metadata(path: &Path, target_cwd: &str) -> Result<Option<S
         };
 
         let line_type = entry.get("type").and_then(|t| t.as_str()).unwrap_or("");
-        let ts = entry
-            .get("ts")
-            .and_then(|t| t.as_str())
-            .unwrap_or("")
-            .to_string();
+        let ts = codex_entry_timestamp(&entry).unwrap_or("").to_string();
 
         if !ts.is_empty() {
             if first_time.is_empty() {
@@ -262,10 +272,7 @@ fn load_codex_session_metadata(path: &Path, target_cwd: &str) -> Result<Option<S
                 if let Some(payload) = entry.get("payload") {
                     let item_type = payload.get("type").and_then(|t| t.as_str()).unwrap_or("");
                     if item_type == "message" {
-                        let role_str = payload
-                            .get("role")
-                            .and_then(|r| r.as_str())
-                            .unwrap_or("");
+                        let role_str = payload.get("role").and_then(|r| r.as_str()).unwrap_or("");
                         if role_str == "user" || role_str == "assistant" {
                             message_count += 1;
                         }
@@ -273,8 +280,7 @@ fn load_codex_session_metadata(path: &Path, target_cwd: &str) -> Result<Option<S
                             if let Some(content) = payload.get("content") {
                                 let text = extract_codex_text(content);
                                 if !text.is_empty() {
-                                    first_user_text =
-                                        Some(truncate_string(&text, 100));
+                                    first_user_text = Some(truncate_string(&text, 100));
                                 }
                             }
                         }
@@ -309,6 +315,22 @@ fn load_codex_session_metadata(path: &Path, target_cwd: &str) -> Result<Option<S
             .file_stem()
             .map(|s| s.to_string_lossy().to_string())
             .unwrap_or_default();
+    }
+
+    // Fallback: use file mtime if no timestamps found in JSONL
+    if first_time.is_empty() || last_time.is_empty() {
+        if let Ok(metadata) = path.metadata() {
+            if let Ok(mtime) = metadata.modified() {
+                let dt: chrono::DateTime<chrono::Utc> = mtime.into();
+                let ts = dt.to_rfc3339();
+                if first_time.is_empty() {
+                    first_time = ts.clone();
+                }
+                if last_time.is_empty() {
+                    last_time = ts;
+                }
+            }
+        }
     }
 
     let mut files_touched: Vec<String> = files_set.into_iter().collect();
@@ -357,11 +379,7 @@ fn load_codex_messages(path: &Path) -> Result<Vec<Message>> {
         };
 
         let line_type = entry.get("type").and_then(|t| t.as_str()).unwrap_or("");
-        let ts = entry
-            .get("ts")
-            .and_then(|t| t.as_str())
-            .unwrap_or("")
-            .to_string();
+        let ts = codex_entry_timestamp(&entry).unwrap_or("").to_string();
 
         match line_type {
             "response_item" => {
@@ -542,10 +560,7 @@ fn truncate_string(s: &str, max: usize) -> String {
     }
 }
 
-fn extract_file_paths_from_args(
-    args_str: &str,
-    files: &mut std::collections::HashSet<String>,
-) {
+fn extract_file_paths_from_args(args_str: &str, files: &mut std::collections::HashSet<String>) {
     if let Ok(args) = serde_json::from_str::<serde_json::Value>(args_str) {
         if let Some(cmd) = args.get("command").and_then(|c| c.as_str()) {
             for word in cmd.split_whitespace() {
@@ -564,7 +579,10 @@ fn looks_like_file_path(s: &str) -> bool {
     if s.len() < 3 {
         return false;
     }
-    let has_ext = s.rfind('.').map(|i| i > 0 && i < s.len() - 1).unwrap_or(false);
+    let has_ext = s
+        .rfind('.')
+        .map(|i| i > 0 && i < s.len() - 1)
+        .unwrap_or(false);
     let has_sep = s.contains('/');
     (has_ext && has_sep) || s.starts_with("./") || s.starts_with("src/") || s.starts_with("tests/")
 }
@@ -621,5 +639,43 @@ fn ext_to_language(ext: &str) -> Option<&'static str> {
         "toml" | "yaml" | "yml" | "json" => Some("Config"),
         "md" => Some("Markdown"),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    fn write_rollout(contents: &str) -> tempfile::NamedTempFile {
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+        file.write_all(contents.as_bytes()).unwrap();
+        file
+    }
+
+    #[test]
+    fn load_metadata_reads_top_level_timestamp() {
+        let file = write_rollout(
+            r#"{"timestamp":"2026-05-21T01:00:00.000Z","type":"session_meta","payload":{"id":"s1","cwd":"/tmp/project"}}"#,
+        );
+
+        let session = load_codex_session_metadata(file.path(), "/tmp/project")
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(session.first_time, "2026-05-21T01:00:00.000Z");
+        assert_eq!(session.last_time, "2026-05-21T01:00:00.000Z");
+    }
+
+    #[test]
+    fn load_messages_reads_top_level_timestamp() {
+        let file = write_rollout(
+            r#"{"timestamp":"2026-05-21T01:00:00.000Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}}"#,
+        );
+
+        let messages = load_codex_messages(file.path()).unwrap();
+
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].timestamp, "2026-05-21T01:00:00.000Z");
     }
 }

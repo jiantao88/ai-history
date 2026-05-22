@@ -59,106 +59,61 @@ impl Provider for CursorProvider {
     }
 
     fn is_available(&self) -> bool {
-        self.global_db()
-            .map(|p| p.is_file())
-            .unwrap_or(false)
+        self.global_db().map(|p| p.is_file()).unwrap_or(false)
     }
 
     fn scan_projects(&self) -> Result<Vec<Project>> {
-        let ws_dir = match self.workspace_storage_dir() {
-            Some(d) if d.is_dir() => d,
+        let global_db_path = match self.global_db() {
+            Some(p) if p.is_file() => p,
             _ => return Ok(Vec::new()),
         };
 
-        let mut projects = Vec::new();
+        let composers = scan_global_composers(&global_db_path)?;
 
-        let entries = fs::read_dir(&ws_dir)?;
-        for entry in entries.flatten() {
-            let ws_path = entry.path();
-            if !ws_path.is_dir() || ws_path.is_symlink() {
+        let mut project_map: HashMap<String, (usize, u64)> = HashMap::new();
+        for c in &composers {
+            if c.archived {
                 continue;
             }
-
-            let workspace_json = ws_path.join("workspace.json");
-            let project_folder = match read_workspace_folder(&workspace_json) {
-                Some(f) => f,
-                None => continue,
-            };
-
-            let ws_db_path = ws_path.join("state.vscdb");
-            let composers = match read_workspace_composers(&ws_db_path) {
-                Ok(c) => c,
-                Err(_) => continue,
-            };
-
-            let active: Vec<&serde_json::Value> = composers
-                .iter()
-                .filter(|c| {
-                    !c.get("isArchived")
-                        .and_then(serde_json::Value::as_bool)
-                        .unwrap_or(false)
-                })
-                .collect();
-
-            if active.is_empty() {
+            let Some(ref ws_path) = c.workspace_path else {
                 continue;
+            };
+            let entry = project_map.entry(ws_path.clone()).or_insert((0, 0));
+            entry.0 += 1;
+            if c.updated > entry.1 {
+                entry.1 = c.updated;
             }
-
-            let session_count = active.len();
-            let last_ms = active
-                .iter()
-                .filter_map(|c| c.get("lastUpdatedAt").and_then(serde_json::Value::as_f64))
-                .fold(0.0f64, f64::max);
-
-            projects.push(Project {
-                provider: "cursor".to_string(),
-                name: project_folder.clone(),
-                path: ws_path.to_string_lossy().to_string(),
-                session_count,
-                last_modified: ms_to_rfc3339(last_ms as u64),
-            });
         }
+
+        let mut projects: Vec<Project> = project_map
+            .into_iter()
+            .map(|(ws_path, (count, last_updated))| Project {
+                provider: "cursor".to_string(),
+                name: ws_path.clone(),
+                path: ws_path,
+                session_count: count,
+                last_modified: ms_to_rfc3339(last_updated),
+            })
+            .collect();
 
         projects.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
         Ok(projects)
     }
 
     fn list_sessions(&self, project: &Project) -> Result<Vec<Session>> {
-        let ws_path = PathBuf::from(&project.path);
-        let ws_db_path = ws_path.join("state.vscdb");
-        let composers = read_workspace_composers(&ws_db_path)?;
+        let global_db_path = match self.global_db() {
+            Some(p) if p.is_file() => p,
+            _ => return Ok(Vec::new()),
+        };
+
+        let composers = scan_global_composers_for_path(&global_db_path, &project.path)?;
 
         let mut sessions: Vec<Session> = composers
-            .iter()
-            .filter_map(|c| {
-                let id = c.get("composerId").and_then(serde_json::Value::as_str)?;
-                let name = c
-                    .get("name")
-                    .and_then(serde_json::Value::as_str)
-                    .unwrap_or("Untitled");
-                let created = c
-                    .get("createdAt")
-                    .and_then(serde_json::Value::as_f64)
-                    .unwrap_or(0.0) as u64;
-                let updated = c
-                    .get("lastUpdatedAt")
-                    .and_then(serde_json::Value::as_f64)
-                    .unwrap_or(0.0) as u64;
-                let is_archived = c
-                    .get("isArchived")
-                    .and_then(serde_json::Value::as_bool)
-                    .unwrap_or(false);
-                let mode = c
-                    .get("unifiedMode")
-                    .and_then(serde_json::Value::as_str)
-                    .unwrap_or("chat");
-
-                if is_archived {
-                    return None;
-                }
-
+            .into_iter()
+            .filter(|c| !c.archived)
+            .map(|c| {
                 let mut tools_used = Vec::new();
-                if mode == "agent" {
+                if c.mode.as_deref() == Some("agent") {
                     tools_used.push("agent-mode".to_string());
                 }
 
@@ -171,21 +126,21 @@ impl Provider for CursorProvider {
                     })
                 };
 
-                Some(Session {
+                Session {
                     provider: "cursor".to_string(),
-                    id: id.to_string(),
-                    file_path: format!("cursor://{id}"),
+                    id: c.id.clone(),
+                    file_path: format!("cursor://{}", c.id),
                     project_name: project.name.clone(),
-                    message_count: 0,
-                    first_time: ms_to_rfc3339(created),
-                    last_time: ms_to_rfc3339(updated),
-                    summary: Some(name.to_string()),
+                    message_count: c.message_count,
+                    first_time: ms_to_rfc3339(c.created),
+                    last_time: ms_to_rfc3339(c.updated),
+                    summary: c.name,
                     metadata,
                     is_subagent: false,
                     parent_session_id: None,
                     agent_type: None,
                     agent_description: None,
-                })
+                }
             })
             .collect();
 
@@ -222,6 +177,103 @@ impl Provider for CursorProvider {
 
         Ok(crate::search::rank_and_search(entries, opts))
     }
+}
+
+struct ComposerMeta {
+    id: String,
+    name: Option<String>,
+    created: u64,
+    updated: u64,
+    workspace_path: Option<String>,
+    archived: bool,
+    mode: Option<String>,
+    message_count: usize,
+}
+
+fn scan_global_composers(global_db_path: &Path) -> Result<Vec<ComposerMeta>> {
+    let conn = open_readonly(global_db_path)?;
+    let mut stmt = conn.prepare(
+        "SELECT
+            substr(key, 14) as id,
+            json_extract(value, '$.name') as name,
+            json_extract(value, '$.createdAt') as created,
+            COALESCE(
+                json_extract(value, '$.lastUpdatedAt'),
+                json_extract(value, '$.createdAt')
+            ) as updated,
+            json_extract(value, '$.workspaceIdentifier.uri.path') as workspace_path,
+            json_extract(value, '$.isArchived') as archived,
+            json_extract(value, '$.unifiedMode') as mode,
+            json_array_length(json_extract(value, '$.fullConversationHeadersOnly')) as msg_count
+        FROM cursorDiskKV
+        WHERE key LIKE 'composerData:%'",
+    )?;
+
+    let rows = stmt.query_map([], |row| {
+        Ok(ComposerMeta {
+            id: row.get::<_, String>(0)?,
+            name: row.get::<_, Option<String>>(1)?,
+            created: row.get::<_, Option<f64>>(2)?.unwrap_or(0.0) as u64,
+            updated: row.get::<_, Option<f64>>(3)?.unwrap_or(0.0) as u64,
+            workspace_path: row.get::<_, Option<String>>(4)?,
+            archived: row.get::<_, Option<bool>>(5)?.unwrap_or(false),
+            mode: row.get::<_, Option<String>>(6)?,
+            message_count: row.get::<_, Option<i64>>(7)?.unwrap_or(0) as usize,
+        })
+    })?;
+
+    let mut composers = Vec::new();
+    for row in rows {
+        if let Ok(c) = row {
+            composers.push(c);
+        }
+    }
+    Ok(composers)
+}
+
+fn scan_global_composers_for_path(
+    global_db_path: &Path,
+    workspace_path: &str,
+) -> Result<Vec<ComposerMeta>> {
+    let conn = open_readonly(global_db_path)?;
+    let mut stmt = conn.prepare(
+        "SELECT
+            substr(key, 14) as id,
+            json_extract(value, '$.name') as name,
+            json_extract(value, '$.createdAt') as created,
+            COALESCE(
+                json_extract(value, '$.lastUpdatedAt'),
+                json_extract(value, '$.createdAt')
+            ) as updated,
+            json_extract(value, '$.workspaceIdentifier.uri.path') as workspace_path,
+            json_extract(value, '$.isArchived') as archived,
+            json_extract(value, '$.unifiedMode') as mode,
+            json_array_length(json_extract(value, '$.fullConversationHeadersOnly')) as msg_count
+        FROM cursorDiskKV
+        WHERE key LIKE 'composerData:%'
+        AND json_extract(value, '$.workspaceIdentifier.uri.path') = ?1",
+    )?;
+
+    let rows = stmt.query_map([workspace_path], |row| {
+        Ok(ComposerMeta {
+            id: row.get::<_, String>(0)?,
+            name: row.get::<_, Option<String>>(1)?,
+            created: row.get::<_, Option<f64>>(2)?.unwrap_or(0.0) as u64,
+            updated: row.get::<_, Option<f64>>(3)?.unwrap_or(0.0) as u64,
+            workspace_path: row.get::<_, Option<String>>(4)?,
+            archived: row.get::<_, Option<bool>>(5)?.unwrap_or(false),
+            mode: row.get::<_, Option<String>>(6)?,
+            message_count: row.get::<_, Option<i64>>(7)?.unwrap_or(0) as usize,
+        })
+    })?;
+
+    let mut composers = Vec::new();
+    for row in rows {
+        if let Ok(c) = row {
+            composers.push(c);
+        }
+    }
+    Ok(composers)
 }
 
 fn load_composer_messages(global_db_path: &Path, composer_id: &str) -> Result<Vec<Message>> {
@@ -527,6 +579,28 @@ fn map_cursor_tool_name(name: &str) -> &str {
 mod tests {
     use super::*;
 
+    fn create_global_db(base: &Path) -> PathBuf {
+        let global_dir = base.join("globalStorage");
+        std::fs::create_dir_all(&global_dir).unwrap();
+        let db_path = global_dir.join("state.vscdb");
+        let conn = Connection::open(&db_path).unwrap();
+        conn.execute(
+            "CREATE TABLE cursorDiskKV (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
+            [],
+        )
+        .unwrap();
+        db_path
+    }
+
+    fn insert_composer(db_path: &Path, id: &str, value: serde_json::Value) {
+        let conn = Connection::open(db_path).unwrap();
+        conn.execute(
+            "INSERT INTO cursorDiskKV (key, value) VALUES (?1, ?2)",
+            [format!("composerData:{id}"), value.to_string()],
+        )
+        .unwrap();
+    }
+
     #[test]
     fn test_parse_cursor_json_with_control_chars() {
         let data = "{\"text\": \"hello\x01world\"}";
@@ -551,7 +625,10 @@ mod tests {
 
     #[test]
     fn test_percent_decode() {
-        assert_eq!(percent_decode("/path/to/my%20project"), "/path/to/my project");
+        assert_eq!(
+            percent_decode("/path/to/my%20project"),
+            "/path/to/my project"
+        );
         assert_eq!(percent_decode("/normal/path"), "/normal/path");
     }
 
@@ -580,9 +657,83 @@ mod tests {
         let bubble = serde_json::json!({
             "timestamp": "2026-01-24T10:00:00Z"
         });
-        assert_eq!(
-            extract_bubble_timestamp(&bubble),
-            "2026-01-24T10:00:00Z"
+        assert_eq!(extract_bubble_timestamp(&bubble), "2026-01-24T10:00:00Z");
+    }
+
+    #[test]
+    fn scan_projects_skips_workspaces_without_composers() {
+        let temp = tempfile::tempdir().unwrap();
+        let base = temp.path();
+        let ws_path = base.join("workspaceStorage/ws1");
+        std::fs::create_dir_all(&ws_path).unwrap();
+        std::fs::write(
+            ws_path.join("workspace.json"),
+            r#"{"folder":"file:///tmp/project"}"#,
+        )
+        .unwrap();
+
+        let provider = CursorProvider {
+            base_path: Some(base.to_path_buf()),
+        };
+
+        let projects = provider.scan_projects().unwrap();
+
+        assert!(projects.is_empty());
+    }
+
+    #[test]
+    fn scan_projects_reads_global_composers_and_falls_back_to_created_time() {
+        let temp = tempfile::tempdir().unwrap();
+        let base = temp.path();
+        let db_path = create_global_db(base);
+
+        insert_composer(
+            &db_path,
+            "active",
+            serde_json::json!({
+                "name": "Active composer",
+                "createdAt": 1700000000000.0,
+                "workspaceIdentifier": {
+                    "uri": { "path": "/tmp/project" }
+                },
+                "isArchived": false,
+                "unifiedMode": "agent",
+                "fullConversationHeadersOnly": [
+                    { "bubbleId": "b1", "type": 1 }
+                ]
+            }),
         );
+        insert_composer(
+            &db_path,
+            "archived",
+            serde_json::json!({
+                "name": "Archived composer",
+                "createdAt": 1800000000000.0,
+                "lastUpdatedAt": 1800000000000.0,
+                "workspaceIdentifier": {
+                    "uri": { "path": "/tmp/project" }
+                },
+                "isArchived": true,
+                "fullConversationHeadersOnly": [
+                    { "bubbleId": "b2", "type": 1 }
+                ]
+            }),
+        );
+
+        let provider = CursorProvider {
+            base_path: Some(base.to_path_buf()),
+        };
+
+        let projects = provider.scan_projects().unwrap();
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].name, "/tmp/project");
+        assert_eq!(projects[0].session_count, 1);
+        assert_eq!(projects[0].last_modified, ms_to_rfc3339(1700000000000));
+
+        let sessions = provider.list_sessions(&projects[0]).unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].id, "active");
+        assert_eq!(sessions[0].message_count, 1);
+        assert_eq!(sessions[0].last_time, ms_to_rfc3339(1700000000000));
     }
 }
