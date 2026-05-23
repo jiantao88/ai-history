@@ -6,6 +6,8 @@
 
 跨 AI 编程助手共享聊天记录。搜索 **Claude Code**、**Codex CLI** 和 **Cursor** 的历史对话，然后注入到当前会话的上下文中。
 
+技术发布文章：[Why I built ai-history: reusable context for AI coding sessions](https://github.com/jiantao88/ai-history/discussions/1)
+
 ## 问题
 
 每次 AI 会话都从零开始。助手不记得昨天做了什么决定、调试了什么 bug、选择了什么架构方案。你不得不一遍又一遍地重复解释相同的上下文。

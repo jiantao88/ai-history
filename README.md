@@ -6,6 +6,8 @@
 
 Share chat history across AI coding assistants. Search past conversations from **Claude Code**, **Codex CLI**, and **Cursor**, then inject them as context into your current session.
 
+Read the launch write-up: [Why I built ai-history: reusable context for AI coding sessions](https://github.com/jiantao88/ai-history/discussions/1)
+
 ## The Problem
 
 Every AI session starts from zero. Your assistant doesn't remember yesterday's decisions, debugging steps, or architectural choices. You end up re-explaining the same context over and over.
