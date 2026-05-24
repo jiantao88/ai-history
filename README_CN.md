@@ -4,17 +4,92 @@
 
 ---
 
-跨 AI 编程助手共享聊天记录。搜索 **Claude Code**、**Codex CLI** 和 **Cursor** 的历史对话，然后注入到当前会话的上下文中。
+AI 编程会话的本地记忆层。
 
-技术发布文章：[Why I built ai-history: reusable context for AI coding sessions](https://github.com/jiantao88/ai-history/discussions/1)
+`ai-history` 可以搜索你本地的 **Claude Code**、**Codex CLI** 和 **Cursor** 聊天记录，并把过去的会话整理成可复用上下文，注入到新的 AI 编程会话里。
 
-## 问题
+如果你经常向不同 AI 助手反复解释同一个 bug、架构背景或代码决策，这个工具就是缺失的本地记忆层。
 
-每次 AI 会话都从零开始。助手不记得昨天做了什么决定、调试了什么 bug、选择了什么架构方案。你不得不一遍又一遍地重复解释相同的上下文。
+- 支持 Claude Code、Codex CLI、Cursor
+- 默认本地运行：不上传、不埋点、不需要账号
+- 输出压缩摘要，而不是直接塞入超长聊天记录
+- 为 Claude Code 和 Codex CLI 安装 `/ai-history` 斜杠命令
 
-## 解决方案
+[技术发布文章](https://github.com/jiantao88/ai-history/discussions/1) · [Demo 脚本](docs/demo-script.md) · [发布清单](docs/release-checklist.md)
+
+## 10 秒示例
+
+```console
+$ ai-history search "auth bug" -n 3
+1. codex  myapp   2026-05-21  Fix OAuth callback regression
+2. cursor myapp   2026-05-18  Investigate stale token cache
+3. claude myapp   2026-05-12  Refactor auth middleware
+
+$ ai-history context 2026-05-21-fix-oauth-callback
+# Session Digest: Fix OAuth callback regression
+
+## Intent
+Fix an OAuth redirect loop after the callback route changed.
+
+## Key Decisions
+- Keep callback validation in `auth/callback.ts`.
+- Do not move token refresh into middleware.
+
+## Code Changes
+- Updated redirect URI handling.
+- Added regression coverage for stale token cache.
+```
+
+把 digest 粘贴到新的 AI 会话里，就可以从昨天的上下文继续，而不是重新解释一遍。
+
+## 为什么需要它
+
+每次 AI 编程会话都从零开始。助手不记得昨天做了什么决定、调试了什么 bug、选择了什么架构方案。历史信息其实已经在本机，但散落在不同工具自己的存储格式里。
 
 `ai-history` 读取多个 AI 工具的聊天记录，让你可以在任何地方使用它们——作为 Claude Code 或 Codex 中的斜杠命令，或者作为可以管道到任何工作流的 CLI 工具。
+
+## 隐私模型
+
+`ai-history` 是 local-first 工具。
+
+- 只读取 Claude Code、Codex CLI 和 Cursor 的本地历史文件。
+- 不上传你的聊天记录。
+- 不收集 telemetry。
+- 不需要托管账号。
+- 只有显式传入 `--llm` 或 `--ai-summary` 并配置 Anthropic 兼容 API key 时，才会调用可选 LLM 增强能力。
+
+## 安装
+
+### 一键安装（推荐）
+
+在终端运行，或者直接告诉你的 AI 助手执行：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jiantao88/ai-history/master/setup | bash
+```
+
+不需要 Rust，不需要编译——脚本会自动下载适合你平台的预编译二进制文件（macOS ARM64/Intel、Linux x86_64），并安装 Claude Code 和 Codex CLI 的 `/ai-history` 斜杠命令。
+
+发布流程和包管理器后续计划见：[发布清单](docs/release-checklist.md)。
+
+### 从源码安装（开发者）
+
+```bash
+git clone https://github.com/jiantao88/ai-history.git
+cd ai-history
+cargo install --path .
+./setup                  # 仅安装 skills（二进制已编译）
+```
+
+## 功能概览
+
+- **搜索**：跨 provider 做 BM25 相关性搜索。
+- **浏览**：列出项目、会话和完整对话。
+- **上下文**：把历史会话导出为适合新 AI 会话使用的压缩摘要。
+- **导出**：支持 Markdown、JSON、Prompt 格式。
+- **日报**：按日期生成 AI 工作总结。
+
+## 工作方式
 
 ```mermaid
 graph LR
@@ -34,7 +109,7 @@ graph LR
     style I fill:#2ecc71,color:#fff,stroke:none
 ```
 
-## 功能概览
+## CLI 功能图
 
 ```mermaid
 graph TD
@@ -91,27 +166,6 @@ graph TB
 ```
 
 查看交互式架构图：[docs/architecture.html](docs/architecture.html)
-
-## 安装
-
-### 一键安装（推荐）
-
-在终端运行，或者直接告诉你的 AI 助手执行：
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/jiantao88/ai-history/master/setup | bash
-```
-
-不需要 Rust，不需要编译——脚本会自动下载适合你平台的预编译二进制文件（macOS ARM64/Intel、Linux x86_64），并安装 Claude Code 和 Codex CLI 的 `/ai-history` 斜杠命令。
-
-### 从源码安装（开发者）
-
-```bash
-git clone https://github.com/jiantao88/ai-history.git
-cd ai-history
-cargo install --path .
-./setup                  # 仅安装 skills（二进制已编译）
-```
 
 ## 在 Claude Code 中使用
 

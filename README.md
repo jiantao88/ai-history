@@ -4,17 +4,92 @@
 
 ---
 
-Share chat history across AI coding assistants. Search past conversations from **Claude Code**, **Codex CLI**, and **Cursor**, then inject them as context into your current session.
+Local memory for AI coding sessions.
 
-Read the launch write-up: [Why I built ai-history: reusable context for AI coding sessions](https://github.com/jiantao88/ai-history/discussions/1)
+`ai-history` searches your local **Claude Code**, **Codex CLI**, and **Cursor** chat history, then turns past sessions into clean context you can reuse in a new AI coding session.
 
-## The Problem
+If you keep re-explaining the same bug, architecture, or codebase decisions to different AI assistants, this is the missing memory layer.
 
-Every AI session starts from zero. Your assistant doesn't remember yesterday's decisions, debugging steps, or architectural choices. You end up re-explaining the same context over and over.
+- Works with Claude Code, Codex CLI, and Cursor
+- Runs locally by default: no upload, no telemetry, no account
+- Generates compact digests instead of dumping huge transcripts
+- Installs a `/ai-history` slash command for Claude Code and Codex CLI
 
-## The Solution
+[Launch write-up](https://github.com/jiantao88/ai-history/discussions/1) · [Demo script](docs/demo-script.md) · [Release checklist](docs/release-checklist.md)
+
+## 10-second demo
+
+```console
+$ ai-history search "auth bug" -n 3
+1. codex  myapp   2026-05-21  Fix OAuth callback regression
+2. cursor myapp   2026-05-18  Investigate stale token cache
+3. claude myapp   2026-05-12  Refactor auth middleware
+
+$ ai-history context 2026-05-21-fix-oauth-callback
+# Session Digest: Fix OAuth callback regression
+
+## Intent
+Fix an OAuth redirect loop after the callback route changed.
+
+## Key Decisions
+- Keep callback validation in `auth/callback.ts`.
+- Do not move token refresh into middleware.
+
+## Code Changes
+- Updated redirect URI handling.
+- Added regression coverage for stale token cache.
+```
+
+Paste the digest into a fresh AI session and continue from yesterday's context instead of rebuilding it from memory.
+
+## Why this exists
+
+Every AI coding session starts from zero. Your assistant does not remember yesterday's decisions, debugging steps, or architectural tradeoffs. The history exists on your machine, but it is scattered across provider-specific storage formats.
 
 `ai-history` reads chat history from multiple AI tools and makes it available anywhere — as a slash command inside Claude Code or Codex, or as a CLI tool you can pipe into any workflow.
+
+## Privacy model
+
+`ai-history` is local-first.
+
+- Reads local history files from Claude Code, Codex CLI, and Cursor.
+- Does not upload your chat history.
+- Does not collect telemetry.
+- Does not require a hosted account.
+- Optional LLM enhancement only runs when you pass `--llm` or `--ai-summary` and provide an Anthropic-compatible API key.
+
+## Installation
+
+### One-line install (recommended)
+
+Run this in your terminal, or just tell your AI assistant to run it:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jiantao88/ai-history/master/setup | bash
+```
+
+No Rust, no build tools required — the script downloads a pre-built binary for your platform (macOS ARM64/Intel, Linux x86_64) and installs the `/ai-history` slash command for Claude Code and Codex CLI.
+
+For release hygiene and package-manager follow-ups, see the [release checklist](docs/release-checklist.md).
+
+### From source (for developers)
+
+```bash
+git clone https://github.com/jiantao88/ai-history.git
+cd ai-history
+cargo install --path .
+./setup                  # install skills only (binary already built)
+```
+
+## Features
+
+- **Search**: BM25-ranked search across all supported providers.
+- **Browse**: list projects, sessions, and full conversations.
+- **Context**: export a session as a compact digest for a new AI session.
+- **Export**: Markdown, JSON, and clean prompt formats.
+- **Summary**: generate a daily work report across AI sessions.
+
+## How it works
 
 ```mermaid
 graph LR
@@ -34,7 +109,7 @@ graph LR
     style I fill:#2ecc71,color:#fff,stroke:none
 ```
 
-## Features
+## CLI map
 
 ```mermaid
 graph TD
@@ -91,27 +166,6 @@ graph TB
 ```
 
 See also: [interactive architecture diagram](docs/architecture.html)
-
-## Installation
-
-### One-line install (recommended)
-
-Run this in your terminal, or just tell your AI assistant to run it:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/jiantao88/ai-history/master/setup | bash
-```
-
-No Rust, no build tools required — the script downloads a pre-built binary for your platform (macOS ARM64/Intel, Linux x86_64) and installs the `/ai-history` slash command for Claude Code and Codex CLI.
-
-### From source (for developers)
-
-```bash
-git clone https://github.com/jiantao88/ai-history.git
-cd ai-history
-cargo install --path .
-./setup                  # install skills only (binary already built)
-```
 
 ## Use in Claude Code
 
