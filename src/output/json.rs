@@ -1,5 +1,6 @@
 use crate::model::{Message, Project, SearchResult, Session};
 use crate::summary::WorkSummary;
+use crate::workflows::WorkflowReport;
 
 pub fn print_projects(projects: &[Project]) {
     println!("{}", serde_json::to_string_pretty(projects).unwrap());
@@ -19,4 +20,8 @@ pub fn print_search_results(results: &[SearchResult]) {
 
 pub fn print_summary(summary: &WorkSummary) {
     println!("{}", serde_json::to_string_pretty(summary).unwrap());
+}
+
+pub fn print_workflow_report(report: &WorkflowReport) {
+    println!("{}", serde_json::to_string_pretty(report).unwrap());
 }

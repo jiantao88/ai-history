@@ -111,37 +111,24 @@ impl Provider for CursorProvider {
         let mut sessions: Vec<Session> = composers
             .into_iter()
             .filter(|c| !c.archived)
-            .map(|c| {
-                let mut tools_used = Vec::new();
-                if c.mode.as_deref() == Some("agent") {
-                    tools_used.push("agent-mode".to_string());
-                }
+            .filter_map(cursor_composer_to_session)
+            .collect();
 
-                let metadata = if tools_used.is_empty() {
-                    None
-                } else {
-                    Some(SessionMetadata {
-                        tools_used,
-                        ..Default::default()
-                    })
-                };
+        sessions.sort_by(|a, b| b.last_time.cmp(&a.last_time));
+        Ok(sessions)
+    }
 
-                Session {
-                    provider: "cursor".to_string(),
-                    id: c.id.clone(),
-                    file_path: format!("cursor://{}", c.id),
-                    project_name: project.name.clone(),
-                    message_count: c.message_count,
-                    first_time: ms_to_rfc3339(c.created),
-                    last_time: ms_to_rfc3339(c.updated),
-                    summary: c.name,
-                    metadata,
-                    is_subagent: false,
-                    parent_session_id: None,
-                    agent_type: None,
-                    agent_description: None,
-                }
-            })
+    fn list_all_sessions(&self) -> Result<Vec<Session>> {
+        let global_db_path = match self.global_db() {
+            Some(p) if p.is_file() => p,
+            _ => return Ok(Vec::new()),
+        };
+
+        let composers = scan_global_composers(&global_db_path)?;
+        let mut sessions: Vec<Session> = composers
+            .into_iter()
+            .filter(|c| !c.archived)
+            .filter_map(cursor_composer_to_session)
             .collect();
 
         sessions.sort_by(|a, b| b.last_time.cmp(&a.last_time));
@@ -188,6 +175,40 @@ struct ComposerMeta {
     archived: bool,
     mode: Option<String>,
     message_count: usize,
+}
+
+fn cursor_composer_to_session(c: ComposerMeta) -> Option<Session> {
+    let project_name = c.workspace_path.clone()?;
+
+    let mut tools_used = Vec::new();
+    if c.mode.as_deref() == Some("agent") {
+        tools_used.push("agent-mode".to_string());
+    }
+
+    let metadata = if tools_used.is_empty() {
+        None
+    } else {
+        Some(SessionMetadata {
+            tools_used,
+            ..Default::default()
+        })
+    };
+
+    Some(Session {
+        provider: "cursor".to_string(),
+        id: c.id.clone(),
+        file_path: format!("cursor://{}", c.id),
+        project_name,
+        message_count: c.message_count,
+        first_time: ms_to_rfc3339(c.created),
+        last_time: ms_to_rfc3339(c.updated),
+        summary: c.name,
+        metadata,
+        is_subagent: false,
+        parent_session_id: None,
+        agent_type: None,
+        agent_description: None,
+    })
 }
 
 fn scan_global_composers(global_db_path: &Path) -> Result<Vec<ComposerMeta>> {

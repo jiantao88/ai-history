@@ -1,7 +1,11 @@
 use clap::{Parser, Subcommand, ValueEnum};
+use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(name = "ai-history", about = "Search and export AI coding assistant chat history")]
+#[command(
+    name = "ai-history",
+    about = "Search and export AI coding assistant chat history"
+)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
@@ -120,6 +124,40 @@ pub enum Command {
         /// Skip cache and regenerate
         #[arg(long)]
         no_cache: bool,
+    },
+
+    /// Find repeated manual workflows worth packaging
+    Workflows {
+        /// Project name (fuzzy matched); omit to review all projects
+        project: Option<String>,
+
+        /// Review the last N days
+        #[arg(long, default_value_t = 30)]
+        days: i64,
+
+        /// Review a date range (YYYY-MM-DD..YYYY-MM-DD)
+        #[arg(long)]
+        range: Option<String>,
+
+        /// Minimum sessions required for a candidate
+        #[arg(long, default_value_t = 2)]
+        min_sessions: usize,
+
+        /// Exclude subagent sessions
+        #[arg(long)]
+        no_subagents: bool,
+
+        /// Write selected candidates as skill drafts
+        #[arg(long)]
+        write_skills: bool,
+
+        /// Candidate ID(s) to write as skills; repeat for multiple
+        #[arg(long = "skill")]
+        skills: Vec<String>,
+
+        /// Directory where skill drafts should be written
+        #[arg(long)]
+        skills_dir: Option<PathBuf>,
     },
 }
 

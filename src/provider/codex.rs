@@ -112,8 +112,41 @@ impl Provider for CodexProvider {
                 if !is_rollout_file(path) {
                     continue;
                 }
+                let Some((cwd, _)) = extract_codex_session_info(path) else {
+                    continue;
+                };
+                if cwd != project.name {
+                    continue;
+                }
                 if let Some(session) = load_codex_session_metadata(path, &project.name)? {
-                    if session.project_name == project.name {
+                    sessions.push(session);
+                }
+            }
+        }
+
+        sessions.sort_by(|a, b| b.last_time.cmp(&a.last_time));
+        Ok(sessions)
+    }
+
+    fn list_all_sessions(&self) -> Result<Vec<Session>> {
+        let Some(ref base) = self.base_path else {
+            return Ok(Vec::new());
+        };
+
+        let mut sessions = Vec::new();
+
+        for dir_name in &["sessions", "archived_sessions"] {
+            let dir = base.join(dir_name);
+            if !dir.exists() {
+                continue;
+            }
+            for entry in WalkDir::new(&dir).into_iter().filter_map(|e| e.ok()) {
+                let path = entry.path();
+                if !is_rollout_file(path) {
+                    continue;
+                }
+                if let Some((cwd, _)) = extract_codex_session_info(path) {
+                    if let Some(session) = load_codex_session_metadata(path, &cwd)? {
                         sessions.push(session);
                     }
                 }

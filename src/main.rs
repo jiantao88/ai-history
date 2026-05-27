@@ -9,6 +9,7 @@ mod provider;
 mod scoring;
 mod search;
 mod summary;
+mod workflows;
 
 use anyhow::{bail, Result};
 use clap::Parser;
@@ -33,7 +34,10 @@ fn main() -> Result<()> {
             }
         }
 
-        Command::Sessions { project, no_subagents } => {
+        Command::Sessions {
+            project,
+            no_subagents,
+        } => {
             let projects = registry.scan_all_projects(filter)?;
             let matched = projects
                 .iter()
@@ -81,7 +85,13 @@ fn main() -> Result<()> {
             }
         }
 
-        Command::Search { query, limit, context_window, require_all, sort_by_time } => {
+        Command::Search {
+            query,
+            limit,
+            context_window,
+            require_all,
+            sort_by_time,
+        } => {
             let opts = search::SearchOptions {
                 query,
                 limit,
@@ -133,7 +143,11 @@ fn main() -> Result<()> {
             }
         }
 
-        Command::Digest { session, llm, no_cache } => {
+        Command::Digest {
+            session,
+            llm,
+            no_cache,
+        } => {
             let (found, provider) = registry
                 .find_session(&session, filter)?
                 .ok_or_else(|| anyhow::anyhow!("Session not found: {session}"))?;
@@ -148,12 +162,14 @@ fn main() -> Result<()> {
             }
         }
 
-        Command::Summary { project, date, range, today, ai_summary } => {
-            let date_range = summary::parse_date_range(
-                date.as_deref(),
-                range.as_deref(),
-                today,
-            )?;
+        Command::Summary {
+            project,
+            date,
+            range,
+            today,
+            ai_summary,
+        } => {
+            let date_range = summary::parse_date_range(date.as_deref(), range.as_deref(), today)?;
 
             let result = summary::build_summary(
                 &registry,
@@ -169,6 +185,37 @@ fn main() -> Result<()> {
                 output::human::print_summary(&result);
             } else {
                 output::human::print_summary_plain(&result);
+            }
+        }
+
+        Command::Workflows {
+            project,
+            days,
+            range,
+            min_sessions,
+            no_subagents,
+            write_skills,
+            skills,
+            skills_dir,
+        } => {
+            let opts = workflows::WorkflowOptions {
+                project_filter: project.as_deref(),
+                days,
+                range: range.as_deref(),
+                min_sessions,
+                include_subagents: !no_subagents,
+                write_skills,
+                selected_skill_ids: skills,
+                skills_dir,
+            };
+            let result = workflows::build_workflow_report(&registry, &opts, filter)?;
+
+            if use_json {
+                output::json::print_workflow_report(&result);
+            } else if is_tty() {
+                output::human::print_workflow_report(&result);
+            } else {
+                output::human::print_workflow_report_plain(&result);
             }
         }
     }

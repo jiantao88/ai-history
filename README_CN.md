@@ -207,6 +207,7 @@ ai-history context <session-id>                    # 摘要（压缩版上下文
 ai-history context <session-id> --full             # 完整对话
 ai-history digest <session-id>                     # 独立摘要
 ai-history digest <session-id> --llm               # LLM 增强摘要
+ai-history workflows --days 30                     # 识别可沉淀的重复工作流
 ai-history export <session-id> --format prompt     # 导出用于粘贴
 ai-history export <session-id> --format md         # Markdown 导出
 ai-history export <session-id> --format json       # JSON 导出
@@ -253,6 +254,26 @@ Sessions: 5    Messages: 452    Active time: ~7h 52m
 5   17:40-21:30     186  新功能    实现ai-history summary功能
 ══════════════════════════════════════════════════════════════════
 ```
+
+### Workflows（可复用工作流挖掘）
+
+回顾最近的 AI 工作记录，识别值得打包成 skill、子代理、自动化，或扩展已有资产的重复手动工作流。默认会扫描所有可用 provider：Codex、Claude Code 和 Cursor。使用 `--provider <id>` 可以限制为单个 provider。
+
+默认只生成报告，不会写入 skill。只有你显式选择候选 ID 并传入 `--write-skills --skill <id>` 时，才会写 skill 草稿。
+
+```bash
+ai-history workflows                               # 最近 30 天
+ai-history workflows rnproject                     # 按项目过滤
+ai-history workflows --days 14                     # 自定义回顾天数
+ai-history workflows --range 2026-04-27..2026-05-27
+ai-history workflows --json
+
+# 将选中的缺失候选写成 skill 草稿
+ai-history workflows --write-skills --skill rn-screenshot-code-fix
+ai-history workflows --write-skills --skill rn-screenshot-code-fix --skills-dir ~/.codex/skills
+```
+
+输出包括重复工作流、证据日期、频率/置信度、推荐形式、已有 skill 覆盖情况，以及是否值得创建。
 
 ### LLM 配置
 

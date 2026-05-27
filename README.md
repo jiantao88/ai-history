@@ -207,6 +207,7 @@ ai-history context <session-id>                    # digest (compressed summary)
 ai-history context <session-id> --full             # full conversation
 ai-history digest <session-id>                     # standalone digest
 ai-history digest <session-id> --llm               # LLM-enhanced digest
+ai-history workflows --days 30                     # repeated workflow candidates
 ai-history export <session-id> --format prompt     # export for pasting
 ai-history export <session-id> --format md         # Markdown export
 ai-history export <session-id> --format json       # JSON export
@@ -253,6 +254,26 @@ Sessions: 5    Messages: 452    Active time: ~7h 52m
 5   17:40-21:30     186  新功能    实现ai-history summary功能
 ══════════════════════════════════════════════════════════════════
 ```
+
+### Workflows (Reusable Workflow Mining)
+
+Review recent AI work and identify repeated manual workflows that may be worth packaging as a skill, subagent, automation, or an extension of an existing asset. By default, this scans all available providers: Codex, Claude Code, and Cursor. Use `--provider <id>` to limit the report to one provider.
+
+By default this is report-only. It never writes skills unless you explicitly select candidate IDs with `--write-skills --skill <id>`.
+
+```bash
+ai-history workflows                               # last 30 days
+ai-history workflows rnproject                     # filter by project
+ai-history workflows --days 14                     # custom lookback window
+ai-history workflows --range 2026-04-27..2026-05-27
+ai-history workflows --json
+
+# Write selected missing candidates as skill drafts
+ai-history workflows --write-skills --skill rn-screenshot-code-fix
+ai-history workflows --write-skills --skill rn-screenshot-code-fix --skills-dir ~/.codex/skills
+```
+
+Output includes the repeated workflow, evidence dates, frequency/confidence, recommended form, existing skill coverage, and whether it is worth creating.
 
 ### LLM Configuration
 

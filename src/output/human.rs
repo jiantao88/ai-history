@@ -1,5 +1,6 @@
 use crate::model::{Message, Project, Role, SearchResult, Session, SessionMetadata};
 use crate::summary::WorkSummary;
+use crate::workflows::WorkflowReport;
 use owo_colors::OwoColorize;
 
 pub fn print_projects(projects: &[Project]) {
@@ -255,7 +256,10 @@ pub fn print_summary(summary: &WorkSummary) {
 
     let multi_project = summary.projects.len() > 1;
 
-    println!("{}", "───────────────────────────────────────────────────────────────────────");
+    println!(
+        "{}",
+        "───────────────────────────────────────────────────────────────────────"
+    );
     if multi_project {
         println!(
             "{:<4} {:<16} {:>5}  {:<8} {:<30} {}",
@@ -268,10 +272,7 @@ pub fn print_summary(summary: &WorkSummary) {
         );
     } else {
         if let Some(first) = summary.projects.first() {
-            println!(
-                "{}",
-                format!("Project: {}", first.project).dimmed()
-            );
+            println!("{}", format!("Project: {}", first.project).dimmed());
         }
         println!(
             "{:<4} {:<16} {:>5}  {:<8} {}",
@@ -282,7 +283,10 @@ pub fn print_summary(summary: &WorkSummary) {
             "Summary".bold(),
         );
     }
-    println!("{}", "───────────────────────────────────────────────────────────────────────");
+    println!(
+        "{}",
+        "───────────────────────────────────────────────────────────────────────"
+    );
 
     let mut idx = 1;
     for proj in &summary.projects {
@@ -337,6 +341,123 @@ pub fn print_summary_plain(summary: &WorkSummary) {
                 entry.project,
             );
         }
+    }
+}
+
+pub fn print_workflow_report(report: &WorkflowReport) {
+    println!(
+        "\n{}",
+        format!("AI WORKFLOW CANDIDATES — {}", report.date_label)
+            .bold()
+            .cyan()
+    );
+    println!("{}", "═".repeat(90));
+    println!(
+        "Reviewed sessions: {}    Candidates: {}",
+        report.total_sessions_reviewed.to_string().bold(),
+        report.candidates.len().to_string().bold(),
+    );
+
+    if report.candidates.is_empty() {
+        println!("{}", "No repeated workflow candidates found.".dimmed());
+        return;
+    }
+
+    println!(
+        "{}",
+        "──────────────────────────────────────────────────────────────────────────────"
+    );
+    println!(
+        "{:<3} {:<38} {:>4} {:<10} {:<16} {}",
+        "#".bold(),
+        "Candidate".bold(),
+        "Freq".bold(),
+        "Confidence".bold(),
+        "Form".bold(),
+        "Coverage".bold(),
+    );
+
+    for (idx, candidate) in report.candidates.iter().enumerate() {
+        let form = if candidate.worth_creating {
+            candidate.recommended_form.green().bold().to_string()
+        } else {
+            candidate.recommended_form.dimmed().to_string()
+        };
+        let coverage = if candidate.coverage == "missing" {
+            "missing".yellow().to_string()
+        } else {
+            candidate.coverage.dimmed().to_string()
+        };
+        println!(
+            "{:<3} {:<38} {:>4} {:<10} {:<16} {}",
+            idx + 1,
+            truncate(&candidate.id, 38),
+            candidate.frequency,
+            candidate.confidence,
+            form,
+            truncate(&coverage, 32),
+        );
+        println!("    {}", truncate(&candidate.workflow, 110));
+        println!("    {}", candidate.rationale.dimmed());
+        let evidence = candidate
+            .evidence
+            .iter()
+            .take(3)
+            .map(|e| {
+                format!(
+                    "{} {} {} {}",
+                    e.date,
+                    e.provider,
+                    e.session_id,
+                    truncate(&e.summary, 42)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(" | ");
+        if !evidence.is_empty() {
+            println!("    {} {}", "Evidence:".bold(), evidence);
+        }
+        if candidate.worth_creating {
+            println!(
+                "    {} ai-history workflows --write-skills --skill {}",
+                "To write draft:".bold(),
+                candidate.id.cyan()
+            );
+        }
+    }
+
+    if !report.written_skills.is_empty() {
+        println!(
+            "{}",
+            "──────────────────────────────────────────────────────────────────────────────"
+        );
+        println!("{}", "Written skill drafts".bold());
+        for skill in &report.written_skills {
+            println!("- {} -> {}", skill.skill_name.green(), skill.path.dimmed());
+        }
+    }
+
+    println!("{}", "═".repeat(90));
+}
+
+pub fn print_workflow_report_plain(report: &WorkflowReport) {
+    for candidate in &report.candidates {
+        println!(
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            candidate.id,
+            candidate.frequency,
+            candidate.confidence,
+            candidate.recommended_form,
+            candidate.coverage,
+            candidate.worth_creating,
+            candidate.workflow,
+        );
+    }
+    for skill in &report.written_skills {
+        println!(
+            "written\t{}\t{}\t{}",
+            skill.candidate_id, skill.skill_name, skill.path,
+        );
     }
 }
 
