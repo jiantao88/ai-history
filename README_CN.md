@@ -207,10 +207,25 @@ ai-history context <session-id>                    # 摘要（压缩版上下文
 ai-history context <session-id> --full             # 完整对话
 ai-history digest <session-id>                     # 独立摘要
 ai-history digest <session-id> --llm               # LLM 增强摘要
+ai-history today . --titles                        # 当前项目今日工作标题
 ai-history workflows --days 30                     # 识别可沉淀的重复工作流
 ai-history export <session-id> --format prompt     # 导出用于粘贴
 ai-history export <session-id> --format md         # Markdown 导出
 ai-history export <session-id> --format json       # JSON 导出
+```
+
+### Today（项目今日工作）
+
+聚合某个项目今天的 AI 会话，默认扫描所有可用 provider：Claude Code、Codex CLI 和 Cursor。该命令完全基于规则处理，不调用 LLM。
+
+```bash
+ai-history today                                   # 当前目录，摘要视图
+ai-history today . --titles                        # 只输出标题列表
+ai-history today . --summary                       # 详细规则摘要
+ai-history today . --json                          # JSON 工作记录
+ai-history today . --titles --json                 # 简化标题 JSON
+ai-history today . --date 2026-06-03 --titles      # 指定本地日期
+ai-history today . --provider codex --titles       # 只看单个 provider
 ```
 
 ### 工作总结（日报）

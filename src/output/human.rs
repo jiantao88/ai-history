@@ -1,5 +1,6 @@
 use crate::model::{Message, Project, Role, SearchResult, Session, SessionMetadata};
 use crate::summary::WorkSummary;
+use crate::today::TodayReport;
 use crate::workflows::WorkflowReport;
 use owo_colors::OwoColorize;
 
@@ -344,6 +345,76 @@ pub fn print_summary_plain(summary: &WorkSummary) {
     }
 }
 
+pub fn print_today_titles(report: &TodayReport) {
+    println!(
+        "\n{}",
+        format!("TODAY WORK TITLES — {}", report.project)
+            .bold()
+            .cyan()
+    );
+    println!("{}", "═".repeat(70));
+
+    if report.entries.is_empty() {
+        println!("{}", "No work sessions found.".dimmed());
+    } else {
+        for entry in &report.entries {
+            println!("- {}", entry.title);
+        }
+    }
+
+    println!("{}", "═".repeat(70));
+}
+
+pub fn print_today_summary(report: &TodayReport) {
+    println!(
+        "\n{}",
+        format!("TODAY WORK SUMMARY — {}", report.project)
+            .bold()
+            .cyan()
+    );
+    println!("{}", "═".repeat(70));
+
+    if report.entries.is_empty() {
+        println!("{}", "No work sessions found.".dimmed());
+        println!("{}", "═".repeat(70));
+        return;
+    }
+
+    for (idx, entry) in report.entries.iter().enumerate() {
+        println!("\n{}. {}", idx + 1, entry.title.bold());
+        println!("   Provider: {}", entry.provider.cyan());
+        println!("   Session: {}", entry.session_id.dimmed());
+        let time = format_today_time(entry.first_time.as_deref(), entry.last_time.as_deref());
+        if !time.is_empty() {
+            println!("   Time: {time}");
+        }
+        if !entry.files_touched.is_empty() {
+            println!("   Files:");
+            for file in entry.files_touched.iter().take(8) {
+                println!("   - {file}");
+            }
+        }
+        if !entry.summary.is_empty() {
+            println!("   Summary:");
+            for line in &entry.summary {
+                println!("   - {line}");
+            }
+        }
+    }
+
+    println!("{}", "═".repeat(70));
+}
+
+pub fn print_today_summary_plain(report: &TodayReport) {
+    for entry in &report.entries {
+        let time = format_today_time(entry.first_time.as_deref(), entry.last_time.as_deref());
+        println!(
+            "{}\t{}\t{}\t{}\t{}",
+            entry.session_id, entry.provider, time, entry.title, entry.project,
+        );
+    }
+}
+
 pub fn print_workflow_report(report: &WorkflowReport) {
     println!(
         "\n{}",
@@ -481,4 +552,26 @@ fn format_metadata_tags(metadata: &Option<SessionMetadata>) -> String {
     }
 
     parts.join(" ")
+}
+
+fn format_today_time(first: Option<&str>, last: Option<&str>) -> String {
+    let start = first.map(format_today_timestamp).unwrap_or_default();
+    let end = last.map(format_today_timestamp).unwrap_or_default();
+    if start.is_empty() {
+        end
+    } else if end.is_empty() || end == start {
+        start
+    } else {
+        format!("{start} - {end}")
+    }
+}
+
+fn format_today_timestamp(ts: &str) -> String {
+    if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(ts) {
+        dt.with_timezone(&chrono::Local).format("%H:%M").to_string()
+    } else if ts.len() >= 16 {
+        ts[11..16].to_string()
+    } else {
+        ts.to_string()
+    }
 }

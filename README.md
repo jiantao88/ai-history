@@ -207,10 +207,25 @@ ai-history context <session-id>                    # digest (compressed summary)
 ai-history context <session-id> --full             # full conversation
 ai-history digest <session-id>                     # standalone digest
 ai-history digest <session-id> --llm               # LLM-enhanced digest
+ai-history today . --titles                        # today's work titles for current project
 ai-history workflows --days 30                     # repeated workflow candidates
 ai-history export <session-id> --format prompt     # export for pasting
 ai-history export <session-id> --format md         # Markdown export
 ai-history export <session-id> --format json       # JSON export
+```
+
+### Today (Project Worklog)
+
+Aggregate today's sessions for one project across all available providers by default: Claude Code, Codex CLI, and Cursor. This command is fully rule-based and does not call an LLM.
+
+```bash
+ai-history today                                   # current directory, summary view
+ai-history today . --titles                        # title list
+ai-history today . --summary                       # detailed rule-based summary
+ai-history today . --json                          # JSON worklog entries
+ai-history today . --titles --json                 # compact title JSON
+ai-history today . --date 2026-06-03 --titles      # specific local date
+ai-history today . --provider codex --titles       # limit to one provider
 ```
 
 ### Summary (Work Report)

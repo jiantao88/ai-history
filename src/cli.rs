@@ -112,6 +112,28 @@ pub enum Command {
         ai_summary: bool,
     },
 
+    /// Aggregate today's work for a project across providers
+    Today {
+        /// Project path or name (defaults to current directory)
+        project: Option<String>,
+
+        /// Summarize a specific local date (YYYY-MM-DD)
+        #[arg(long)]
+        date: Option<String>,
+
+        /// Output only work titles
+        #[arg(long)]
+        titles: bool,
+
+        /// Output detailed rule-based summaries
+        #[arg(long)]
+        summary: bool,
+
+        /// Query all providers (default unless --provider is set)
+        #[arg(long)]
+        all_providers: bool,
+    },
+
     /// Generate a session digest (compressed summary)
     Digest {
         /// Session ID or path fragment

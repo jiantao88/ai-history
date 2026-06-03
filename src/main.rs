@@ -9,6 +9,7 @@ mod provider;
 mod scoring;
 mod search;
 mod summary;
+mod today;
 mod workflows;
 
 use anyhow::{bail, Result};
@@ -185,6 +186,35 @@ fn main() -> Result<()> {
                 output::human::print_summary(&result);
             } else {
                 output::human::print_summary_plain(&result);
+            }
+        }
+
+        Command::Today {
+            project,
+            date,
+            titles,
+            summary: _,
+            all_providers,
+        } => {
+            let opts = today::TodayOptions {
+                project: project.as_deref(),
+                date: date.as_deref(),
+            };
+            let today_filter = if all_providers { None } else { filter };
+            let result = today::build_today_report(&registry, &opts, today_filter)?;
+
+            if use_json {
+                if titles {
+                    output::json::print_today_titles(&today::title_entries(&result));
+                } else {
+                    output::json::print_today_entries(&result.entries);
+                }
+            } else if titles {
+                output::human::print_today_titles(&result);
+            } else if is_tty() {
+                output::human::print_today_summary(&result);
+            } else {
+                output::human::print_today_summary_plain(&result);
             }
         }
 
